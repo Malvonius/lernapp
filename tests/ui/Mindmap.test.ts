@@ -19,7 +19,7 @@ describe('mindmapMarkdown', () => {
         { text: '> Zitat', kinder: [] },
       ],
     });
-    expect(md.split('\n')).toEqual(['- Wurzel', '  - \# Titel', '  - 1\. Eins', '  - \- Strich', '  - &gt; Zitat']);
+    expect(md.split('\n')).toEqual(['- Wurzel', '  - \\# Titel', '  - 1\\. Eins', '  - \\- Strich', '  - &gt; Zitat']);
   });
 
   it('normale Knoten bleiben unverändert', () => {
