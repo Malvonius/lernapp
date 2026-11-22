@@ -296,3 +296,37 @@ main { flex: 1; display: flex; flex-direction: column; }
 }
 .schalter[aria-checked='true']::before { background: var(--fach); border-color: var(--fach); }
 .schalter[aria-checked='true'] .schalter__knopf { transform: translateX(28px); background: var(--c-on-accent); }
+
+/* Themenansicht */
+.thema-aktionen { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.thema-aktionen a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.reiter { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--c-line); overflow-x: auto; }
+.reiter__knopf {
+  min-height: var(--touch);
+  padding: var(--sp-2) var(--sp-4);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--c-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.reiter__knopf[aria-selected='true'] { color: var(--c-text); border-bottom-color: var(--fach); }
+.reiter__feld { padding-top: var(--sp-4); }
+.markdown { overflow-wrap: anywhere; }
+.markdown a { color: var(--c-focus); }
+.markdown .katex-display { overflow-x: auto; overflow-y: hidden; }
+.tabelle-scroll { overflow-x: auto; margin: var(--sp-3) 0; }
+.tabelle-scroll table { border-collapse: collapse; }
+.tabelle-scroll th, .tabelle-scroll td { border: 1px solid var(--c-line); padding: var(--sp-2) var(--sp-3); }
+.karten-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
+.karte-eintrag { border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); padding: var(--sp-4); display: grid; gap: var(--sp-3); }
+.karte-eintrag__frage { font-weight: 600; }
+.karte-eintrag__antwort { border-top: 1px dashed var(--c-line); padding-top: var(--sp-3); }
+.karte-eintrag .button { justify-self: start; }
+.mindmap { width: 100%; height: 60vh; min-height: 320px; border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); touch-action: none; color: var(--c-text); }
+.mindmap text { fill: var(--c-text); }
+.mindmap .markmap-link { stroke-opacity: 0.8; }

@@ -4,6 +4,7 @@ import { Fach } from './ui/screens/Fach';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
 import { Start } from './ui/screens/Start';
+import { Thema } from './ui/screens/Thema';
 
 function Routen() {
   const { bereit, hatToken } = useAppData();
@@ -18,7 +19,7 @@ function Routen() {
     <Routes>
       <Route path="/" element={hatToken ? <Start /> : <Einstellungen />} />
       <Route path="/fach/:fachId" element={<Fach />} />
-      <Route path="/thema/:fachId/:themaId" element={<Platzhalter titel="Thema" />} />
+      <Route path="/thema/:fachId/:themaId" element={<Thema />} />
       <Route path="/wiederholen" element={<Platzhalter titel="Wiederholen" />} />
       <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />
       <Route path="/suche" element={<Platzhalter titel="Suche" />} />
