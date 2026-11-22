@@ -18,7 +18,7 @@ Der `gh`-Login braucht den Scope `workflow`: `gh auth refresh -h github.com -s w
 `index.json` gehört nur der Action. Lokal nie committen: `git checkout -- index.json`. Bei einem Rebase-Konflikt die Version von `origin` nehmen.
 
 ## Eine `.doc`-Datei wird nicht umgewandelt
-Das Extraktions-Werkzeug braucht für das alte Word-Format LibreOffice. Ohne LibreOffice die Datei in Word als `.docx` speichern und erneut einspielen.
+Das Extraktions-Werkzeug braucht für das alte Word-Format LibreOffice (`soffice`, auf dem PC unter `C:\Program Files\LibreOffice`). Fehlt es, etwa in einer neuen Umgebung, die Datei in Word als `.docx` speichern und erneut einspielen. Tabellen aus `.doc` zeigt pandoc manchmal nur als `[TABLE]`; dann direkt mit `soffice --headless --convert-to "txt:Text (encoded):UTF8"` den Text holen.
 
 ## Formeln fehlen nach dem Umwandeln
 `.docx` und `.odt` laufen über pandoc, das Formeln als LaTeX behält. Wenn trotzdem welche fehlen, sind es meist Bilder von Formeln: Die liegen in `<datei>_bilder/` und müssen angesehen werden.
