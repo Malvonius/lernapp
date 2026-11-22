@@ -1,0 +1,147 @@
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { gitBlobSha } from './gitHash';
+import { ensureIds, findDuplicateIds } from './ids';
+import { parseSubject } from './parseSubject';
+import { parseTopic } from './parseTopic';
+import type { IndexChapter, IndexSubject, IndexTopic, LernIndex, Topic } from './types';
+
+interface TopicFile {
+  pfad: string; // relativ, mit '/'
+  ordner: string; // Kapitel-Ordner
+  datei: string; // Dateiname ohne .md
+  bytes: Buffer;
+  topic: Topic;
+}
+
+const isHidden = (name: string) => name.startsWith('_') || name.startsWith('.');
+
+/**
+ * Baut den Index über alle Fächer unter `root`. Mit `fix` werden fehlende IDs
+ * ergänzt und die betroffenen Dateien zurückgeschrieben (vor dem Index-Bau).
+ */
+export async function buildIndex(
+  root: string,
+  opts: { fix: boolean; now?: Date },
+): Promise<{ index: LernIndex; changedFiles: string[] }> {
+  const subjectDirs = (await readdir(root, { withFileTypes: true }))
+    .filter((d) => d.isDirectory() && !isHidden(d.name) && existsSync(join(root, d.name, `${d.name}.md`)))
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b, 'de'));
+
+  const filesBySubject = new Map<string, TopicFile[]>();
+  for (const s of subjectDirs) filesBySubject.set(s, await readTopicFiles(root, s));
+  const all = [...filesBySubject.values()].flat();
+
+  const changedFiles: string[] = [];
+  if (opts.fix) {
+    const taken = new Set<string>();
+    for (const f of all) for (const it of [...f.topic.karten, ...f.topic.uebungen]) if (it.id) taken.add(it.id);
+    for (const f of all) {
+      const before = f.bytes.toString('utf8');
+      const { text, added } = ensureIds(before, taken);
+      if (added.length === 0) continue;
+      f.bytes = Buffer.from(text, 'utf8');
+      f.topic = parseTopic(text);
+      await writeFile(join(root, ...f.pfad.split('/')), f.bytes);
+      changedFiles.push(f.pfad);
+    }
+  }
+
+  const dupErrors = new Map<string, string[]>(); // pfad → Fehler
+  for (const [id, places] of findDuplicateIds(all.map((f) => ({ pfad: f.pfad, topic: f.topic })))) {
+    for (const p of new Set(places.map((pl) => pl.replace(/:\d+$/, '')))) {
+      const list = dupErrors.get(p) ?? [];
+      list.push(`ID ${id} doppelt (${places.join(', ')})`);
+      dupErrors.set(p, list);
+    }
+  }
+
+  const toIndexTopic = (f: TopicFile, titel?: string): IndexTopic => ({
+    id: f.topic.id || null,
+    titel: titel ?? (f.topic.titel || f.datei),
+    pfad: f.pfad,
+    hash: gitBlobSha(f.bytes),
+    karten: f.topic.karten.filter((k) => !k.zurueckgezogen).length,
+    uebungen: f.topic.uebungen.filter((u) => !u.zurueckgezogen).length,
+    hatMindmap: f.topic.mindmap !== null,
+    fehler: [...f.topic.fehler, ...(dupErrors.get(f.pfad) ?? [])],
+  });
+
+  const faecher: IndexSubject[] = [];
+  for (const dir of subjectDirs) {
+    const subjectPath = `${dir}/${dir}.md`;
+    const bytes = await readFile(join(root, dir, `${dir}.md`));
+    const subject = parseSubject(bytes.toString('utf8'));
+    const files = filesBySubject.get(dir) ?? [];
+    const used = new Set<string>();
+    const kapitel: IndexChapter[] = subject.kapitel.map((k) => ({
+      ordner: k.ordner,
+      titel: k.titel,
+      themen: k.themen.map((ref) => {
+        const f = files.find((x) => x.ordner === k.ordner && x.datei === ref.datei);
+        if (!f) {
+          return { id: null, titel: ref.titel, pfad: null, hash: null, karten: 0, uebungen: 0, hatMindmap: false, fehler: [] };
+        }
+        used.add(f.pfad);
+        return toIndexTopic(f, ref.titel);
+      }),
+    }));
+    faecher.push({
+      id: subject.id,
+      name: subject.name,
+      kuerzel: subject.kuerzel,
+      farbe: subject.farbe,
+      struktur: subject.struktur,
+      pfad: subjectPath,
+      hash: gitBlobSha(bytes),
+      kapitel,
+      nichtZugeordnet: files.filter((f) => !used.has(f.pfad)).map((f) => toIndexTopic(f)),
+      fehler: subject.fehler,
+    });
+  }
+
+  const rueckfragen = await countMarkdown(join(root, '_rueckfrage'));
+  const fehlerAnzahl = faecher.reduce(
+    (n, s) =>
+      n + s.fehler.length +
+      [...s.kapitel.flatMap((k) => k.themen), ...s.nichtZugeordnet].reduce((m, t) => m + t.fehler.length, 0),
+    0,
+  );
+
+  return {
+    index: { version: 1, erstellt: (opts.now ?? new Date()).toISOString(), faecher, rueckfragen, fehlerAnzahl },
+    changedFiles,
+  };
+}
+
+async function readTopicFiles(root: string, subjectDir: string): Promise<TopicFile[]> {
+  const out: TopicFile[] = [];
+  const chapters = (await readdir(join(root, subjectDir), { withFileTypes: true }))
+    .filter((d) => d.isDirectory() && !isHidden(d.name))
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b, 'de'));
+  for (const ordner of chapters) {
+    const names = (await readdir(join(root, subjectDir, ordner), { withFileTypes: true }))
+      .filter((d) => d.isFile() && d.name.endsWith('.md'))
+      .map((d) => d.name)
+      .sort((a, b) => a.localeCompare(b, 'de'));
+    for (const name of names) {
+      const bytes = await readFile(join(root, subjectDir, ordner, name));
+      out.push({
+        pfad: `${subjectDir}/${ordner}/${name}`,
+        ordner,
+        datei: name.slice(0, -3),
+        bytes,
+        topic: parseTopic(bytes.toString('utf8')),
+      });
+    }
+  }
+  return out;
+}
+
+async function countMarkdown(dir: string): Promise<number> {
+  if (!existsSync(dir)) return 0;
+  return (await readdir(dir)).filter((n) => n.endsWith('.md')).length;
+}
