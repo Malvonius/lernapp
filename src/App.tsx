@@ -1,5 +1,6 @@
 import { HashRouter, Link, Route, Routes } from 'react-router-dom';
 import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/AppData';
+import { Fach } from './ui/screens/Fach';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
 import { Start } from './ui/screens/Start';
@@ -16,7 +17,7 @@ function Routen() {
   return (
     <Routes>
       <Route path="/" element={hatToken ? <Start /> : <Einstellungen />} />
-      <Route path="/fach/:fachId" element={<Platzhalter titel="Fach" />} />
+      <Route path="/fach/:fachId" element={<Fach />} />
       <Route path="/thema/:fachId/:themaId" element={<Platzhalter titel="Thema" />} />
       <Route path="/wiederholen" element={<Platzhalter titel="Wiederholen" />} />
       <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />

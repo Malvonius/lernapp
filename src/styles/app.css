@@ -218,9 +218,41 @@ main { flex: 1; display: flex; flex-direction: column; }
 .kachel__info { color: var(--c-muted); font-size: var(--fs-sm); }
 
 .ampel-anteil { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--c-raised); }
-.ampel-anteil__gruen { background: var(--c-ok); }
-.ampel-anteil__gelb { background: var(--c-danger); }
-.ampel-anteil__grau { background: var(--c-line); }
+.ampel-anteil__gruen { background: var(--c-st-gruen); }
+.ampel-anteil__gelb { background: var(--c-st-gelb); }
+.ampel-anteil__rot { background: var(--c-st-rot); }
+.ampel-anteil__neu { background: var(--c-st-neu); }
+.ampel-anteil__fehlerhaft { background: var(--c-st-fehlerhaft); }
+.ampel-anteil__luecke { background: var(--c-st-luecke); }
+
+/* Ampel */
+.ampel { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--c-muted); white-space: nowrap; }
+.ampel__punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--st); flex: none; }
+.ampel--gruen { --st: var(--c-st-gruen); }
+.ampel--gelb { --st: var(--c-st-gelb); }
+.ampel--rot { --st: var(--c-st-rot); }
+.ampel--neu { --st: var(--c-st-neu); }
+.ampel--luecke { --st: var(--c-st-luecke); }
+.ampel--fehlerhaft { --st: var(--c-st-fehlerhaft); }
+.ampel--luecke .ampel__punkt { background: transparent; border: 2px dashed var(--st); }
+
+/* Fachansicht */
+.fach-titel { border-left: 4px solid var(--fach); padding-left: var(--sp-3); }
+.hinweis { color: var(--c-muted); font-size: var(--fs-sm); margin: 0 0 var(--sp-4); }
+.kapitel { margin-bottom: var(--sp-5); }
+.kapitel__titel { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.themen { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.thema { border: 1px solid var(--c-line); border-radius: var(--r-field); background: var(--c-surface); }
+.thema__link, .thema__knopf, .thema--luecke {
+  display: flex; align-items: center; gap: var(--sp-3); min-height: var(--touch); padding: var(--sp-2) var(--sp-3);
+}
+.thema__link { color: var(--c-text); text-decoration: none; }
+.thema__link:hover { background: var(--c-raised); }
+.thema__knopf { width: 100%; background: none; border: 0; color: var(--c-text); font: inherit; text-align: left; cursor: pointer; justify-content: space-between; }
+.thema__titel { flex: 1; min-width: 0; }
+.thema__info { color: var(--c-muted); font-size: var(--fs-sm); }
+.thema--luecke { color: var(--c-muted); border-style: dashed; background: transparent; }
+.thema__hinweis { margin: 0; padding: 0 var(--sp-3) var(--sp-3); color: var(--c-muted); font-size: var(--fs-sm); }
 
 /* Einstellungen */
 .anleitung { margin: 0 0 var(--sp-5); color: var(--c-muted); font-size: var(--fs-sm); }

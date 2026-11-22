@@ -22,6 +22,11 @@ export function mergeEvents(...listen: Ereignis[][]): Ereignis[] {
 // enable_fuzz: false, damit jedes Gerät dasselbe Ergebnis berechnet.
 const scheduler = fsrs(generatorParameters({ enable_fuzz: false }));
 
+/** Abrufwahrscheinlichkeit (0..1) einer Karte zum Zeitpunkt `jetzt`, mit demselben Scheduler wie replayCards. */
+export function abrufwahrscheinlichkeit(karte: FsrsCard, jetzt: Date): number {
+  return scheduler.retrievability(karte, jetzt);
+}
+
 /** Spielt alle Kartenbewertungen in Zeitreihenfolge ab und liefert den FSRS-Zustand je Karte. */
 export function replayCards(ereignisse: Ereignis[]): Map<string, FsrsCard> {
   const zustand = new Map<string, FsrsCard>();

@@ -47,6 +47,14 @@ describe('Startseite', () => {
     expect(screen.getByRole('link', { name: 'Prüfung starten' })).toHaveAttribute('href', '#/pruefung');
   });
 
+  it('die Kachel zeigt den Anteil der Themen je Ampel-Status (wie die Fachansicht)', async () => {
+    await mitZugang();
+    const { client } = fakeClient(index);
+    render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+    await screen.findByRole('link', { name: /Angewandte Mathematik/ });
+    expect(screen.getByRole('img', { name: '2 neu, 1 Lücke' })).toBeInTheDocument();
+  });
+
   it('Sync wirft auth → Fehlermeldung mit Link zu den Einstellungen', async () => {
     await mitZugang();
     const { client } = fakeClient(index, { fail: new GitHubError('auth', 401) });

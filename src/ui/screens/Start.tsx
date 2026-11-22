@@ -2,30 +2,22 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { IndexSubject } from '../../format/types';
 import { aktiveKartenIds, themenPfade, useAppData } from '../../state/AppData';
+import { fachStatus, STATUS_REIHE, type Status } from '../../lib/status';
+import { STATUS_LABEL } from '../components/Ampel';
 import { SyncBanner } from '../components/SyncBanner';
 
-interface Anteil {
-  sitzt: number;
-  faellig: number;
-  neu: number;
-}
-
 function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<string> }) {
-  const { topics, kartenZustand } = useAppData();
+  const { topics, kartenZustand, jetzt } = useAppData();
   const pfade = themenPfade(fach);
-  const ids = pfade.flatMap((p) => {
-    const t = topics(p);
+  const kartenIds = (pfad: string) => {
+    const t = topics(pfad);
     return t ? aktiveKartenIds(t) : [];
-  });
-  const anteil: Anteil = { sitzt: 0, faellig: 0, neu: 0 };
-  for (const id of ids) {
-    if (!kartenZustand.has(id)) anteil.neu++;
-    else if (faelligSet.has(id)) anteil.faellig++;
-    else anteil.sitzt++;
-  }
-  const faelligHier = ids.filter((id) => faelligSet.has(id)).length;
-  const gesamt = ids.length || 1;
-  const pct = (x: number) => `${(x / gesamt) * 100}%`;
+  };
+  const faelligHier = pfade.flatMap(kartenIds).filter((id) => faelligSet.has(id)).length;
+  // Anteil der Themen je Status, dieselbe Rechnung wie in der Fachansicht
+  const stati = fachStatus(fach, kartenIds, kartenZustand, jetzt);
+  const anzahl = (s: Status) => stati.filter((x) => x === s).length;
+  const gesamt = stati.length || 1;
 
   return (
     <li>
@@ -34,11 +26,15 @@ function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<
         <span className="kachel__info">
           {pfade.length} {pfade.length === 1 ? 'Thema' : 'Themen'} · {faelligHier} fällig
         </span>
-        {ids.length > 0 && (
-          <span className="ampel-anteil" aria-label={`${anteil.sitzt} sitzen, ${anteil.faellig} fällig, ${anteil.neu} neu`}>
-            <span className="ampel-anteil__gruen" style={{ width: pct(anteil.sitzt) }} />
-            <span className="ampel-anteil__gelb" style={{ width: pct(anteil.faellig) }} />
-            <span className="ampel-anteil__grau" style={{ width: pct(anteil.neu) }} />
+        {stati.length > 0 && (
+          <span
+            className="ampel-anteil"
+            role="img"
+            aria-label={STATUS_REIHE.filter((s) => anzahl(s) > 0).map((s) => `${anzahl(s)} ${STATUS_LABEL[s]}`).join(', ')}
+          >
+            {STATUS_REIHE.map((s) => (
+              <span key={s} className={`ampel-anteil__${s}`} style={{ width: `${(anzahl(s) / gesamt) * 100}%` }} />
+            ))}
           </span>
         )}
       </Link>

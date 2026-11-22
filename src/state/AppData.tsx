@@ -31,6 +31,8 @@ export interface AppData {
   kartenZustand: Map<string, FsrsCard>;
   ereignisse: Ereignis[];
   faellig: string[];
+  /** Zeitpunkt, auf den `faellig` und die Ampel-Status gerechnet sind (neu nach jedem Abgleich) */
+  jetzt: Date;
   syncStatus: SyncStatus;
   sync(): Promise<void>;
   record(e: NeuesEreignis): Promise<void>;
@@ -254,11 +256,9 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   }, []);
 
   const kartenZustand = useMemo(() => replayCards(ereignisse), [ereignisse]);
-  const faellig = useMemo(() => {
-    const ids = [...themen.values()].flatMap(aktiveKartenIds);
-    return dueCards(kartenZustand, ids, nowRef.current());
-    // syncStatus: nach jedem Abgleich neu gegen die aktuelle Zeit rechnen
-  }, [kartenZustand, themen, syncStatus]);
+  // syncStatus: nach jedem Abgleich neu gegen die aktuelle Zeit rechnen
+  const jetzt = useMemo(() => nowRef.current(), [kartenZustand, themen, syncStatus]);
+  const faellig = useMemo(() => dueCards(kartenZustand, [...themen.values()].flatMap(aktiveKartenIds), jetzt), [kartenZustand, themen, jetzt]);
   const topics = useCallback((pfad: string) => themen.get(pfad) ?? null, [themen]);
 
   const wert = useMemo<AppData>(
@@ -272,6 +272,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       kartenZustand,
       ereignisse,
       faellig,
+      jetzt,
       syncStatus,
       sync,
       record,
@@ -279,7 +280,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       speichereZugang,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, syncStatus, sync, record, pruefeVerbindung, speichereZugang, setzeTheme],
+    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, syncStatus, sync, record, pruefeVerbindung, speichereZugang, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;

@@ -20,6 +20,14 @@
   --c-ok: #7fb59a;
   --c-focus: #e9b3c2;
 
+  /* Ampel-Status (Fachansicht, Start-Kacheln) */
+  --c-st-gruen: #6fbf8f;
+  --c-st-gelb: #dcb24a;
+  --c-st-rot: #e8685a;
+  --c-st-neu: #8aa4d6;
+  --c-st-luecke: #6f6a78;
+  --c-st-fehlerhaft: #d98ac4;
+
   /* Fach-Akzent: Screens setzen --fach inline, sonst gilt der Grundakzent */
   --fach: var(--c-accent);
 
@@ -68,4 +76,10 @@
   --c-danger: #b23a2a;
   --c-ok: #2f7255;
   --c-focus: #8e2f4b;
+  --c-st-gruen: #2f7a4f;
+  --c-st-gelb: #8f6a00;
+  --c-st-rot: #b5301f;
+  --c-st-neu: #3f5f9f;
+  --c-st-luecke: #7d7886;
+  --c-st-fehlerhaft: #9a3b85;
 }
