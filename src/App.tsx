@@ -1,31 +1,52 @@
 import { HashRouter, Link, Route, Routes } from 'react-router-dom';
-import { Einrichten } from './screens/Einrichten';
-import { Platzhalter } from './screens/Platzhalter';
+import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/AppData';
+import { Einstellungen } from './ui/screens/Einstellungen';
+import { Platzhalter } from './ui/screens/Platzhalter';
+import { Start } from './ui/screens/Start';
 
-/**
- * App-Gerüst mit allen Routen. Noch ohne Token-Speicher: `/` zeigt deshalb den Einrichten-Screen.
- * Task 6 ergänzt den App-Zustand (Token aus IndexedDB) und die echte Startseite.
- */
-export function App() {
+function Routen() {
+  const { bereit, hatToken } = useAppData();
+  if (!bereit) {
+    return (
+      <section className="screen" aria-busy="true">
+        <p className="lead">Lädt …</p>
+      </section>
+    );
+  }
   return (
-    <HashRouter>
-      <div className="app">
-        <header className="app-bar">
-          <Link to="/" className="wordmark">Lernapp</Link>
-        </header>
-        <main>
-          <Routes>
-            <Route path="/" element={<Einrichten />} />
-            <Route path="/fach/:fachId" element={<Platzhalter titel="Fach" />} />
-            <Route path="/thema/:fachId/:themaId" element={<Platzhalter titel="Thema" />} />
-            <Route path="/wiederholen" element={<Platzhalter titel="Wiederholen" />} />
-            <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />
-            <Route path="/suche" element={<Platzhalter titel="Suche" />} />
-            <Route path="/einstellungen" element={<Einrichten />} />
-            <Route path="*" element={<Platzhalter titel="Seite nicht gefunden" />} />
-          </Routes>
-        </main>
-      </div>
-    </HashRouter>
+    <Routes>
+      <Route path="/" element={hatToken ? <Start /> : <Einstellungen />} />
+      <Route path="/fach/:fachId" element={<Platzhalter titel="Fach" />} />
+      <Route path="/thema/:fachId/:themaId" element={<Platzhalter titel="Thema" />} />
+      <Route path="/wiederholen" element={<Platzhalter titel="Wiederholen" />} />
+      <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />
+      <Route path="/suche" element={<Platzhalter titel="Suche" />} />
+      <Route path="/einstellungen" element={<Einstellungen />} />
+      <Route path="*" element={<Platzhalter titel="Seite nicht gefunden" />} />
+    </Routes>
+  );
+}
+
+/** App-Gerüst: Zustand (AppDataProvider) und alle Routen. Props nur für Tests. */
+export function App(props: Omit<AppDataProviderProps, 'children'>) {
+  return (
+    <AppDataProvider {...props}>
+      <HashRouter>
+        <div className="app">
+          <header className="app-bar">
+            <Link to="/" className="wordmark">Lernapp</Link>
+            <Link to="/einstellungen" className="app-bar__link" aria-label="Zu den Einstellungen" title="Einstellungen">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="3.2" />
+                <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
+              </svg>
+            </Link>
+          </header>
+          <main>
+            <Routen />
+          </main>
+        </div>
+      </HashRouter>
+    </AppDataProvider>
   );
 }

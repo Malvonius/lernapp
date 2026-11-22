@@ -133,3 +133,134 @@ main { flex: 1; display: flex; flex-direction: column; }
     animation-duration: 0.01ms !important;
   }
 }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.app-bar { justify-content: space-between; }
+.app-bar__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  min-height: var(--touch);
+  color: var(--c-muted);
+  border-radius: var(--r-field);
+}
+.app-bar__link:hover { color: var(--c-text); }
+
+/* Sync-Banner */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+}
+.banner--fehler { border-color: var(--c-danger); color: var(--c-text); }
+.banner a { color: var(--c-danger); font-weight: 600; min-height: var(--touch); display: inline-flex; align-items: center; }
+
+/* Start */
+.start-aktionen { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-6); }
+.cta {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--touch) * 1.6);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-panel);
+  background: var(--fach);
+  color: var(--c-on-accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform var(--dur) var(--ease);
+}
+.cta:active { transform: scale(0.98); }
+.start-pruefung { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+.kacheln {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--sp-3);
+}
+.kachel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-height: var(--touch);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-left: 4px solid var(--fach);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  color: var(--c-text);
+  text-decoration: none;
+  transition: background-color var(--dur) var(--ease);
+}
+.kachel:hover { background: var(--c-raised); }
+.kachel__name { font-family: var(--font-display); font-size: var(--fs-md); font-weight: 600; }
+.kachel__info { color: var(--c-muted); font-size: var(--fs-sm); }
+
+.ampel-anteil { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--c-raised); }
+.ampel-anteil__gruen { background: var(--c-ok); }
+.ampel-anteil__gelb { background: var(--c-danger); }
+.ampel-anteil__grau { background: var(--c-line); }
+
+/* Einstellungen */
+.anleitung { margin: 0 0 var(--sp-5); color: var(--c-muted); font-size: var(--fs-sm); }
+.anleitung summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; color: var(--c-text); font-weight: 600; }
+.anleitung ol { margin: var(--sp-2) 0 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-2); }
+.anleitung a { display: inline; }
+.einstellungen-h2 { margin-top: var(--sp-6); }
+.meldung { margin: var(--sp-3) 0 0; font-size: var(--fs-sm); }
+.meldung--ok { color: var(--c-ok); }
+.meldung--fehler { color: var(--c-danger); }
+
+.schalter-zeile { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); max-width: 24rem; }
+.schalter {
+  position: relative;
+  flex: none;
+  width: 56px;
+  min-height: var(--touch);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.schalter::before {
+  content: '';
+  position: absolute;
+  inset: 10px 0;
+  border-radius: 12px;
+  background: var(--c-raised);
+  border: 1px solid var(--c-line);
+  transition: background-color var(--dur) var(--ease);
+}
+.schalter__knopf {
+  position: absolute;
+  top: 14px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-muted);
+  transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.schalter[aria-checked='true']::before { background: var(--fach); border-color: var(--fach); }
+.schalter[aria-checked='true'] .schalter__knopf { transform: translateX(28px); background: var(--c-on-accent); }
