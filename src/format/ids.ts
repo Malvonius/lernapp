@@ -2,7 +2,8 @@ import { parseTopic } from './parseTopic';
 import type { Topic } from './types';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
-const RETIRED = '%%zurückgezogen%%';
+/** Zeilen, an die keine ID angehängt werden darf (sonst bricht die Darstellung in Obsidian). */
+const BLOCK_END = /^\s*(```+|~~~+|\$\$|\|.*\|)\s*$/;
 
 /** Zufällige ID `k-xxxxxx` / `u-xxxxxx`, garantiert nicht in `taken`. */
 export function newId(prefix: 'k' | 'u', taken: Set<string>): string {
@@ -13,53 +14,56 @@ export function newId(prefix: 'k' | 'u', taken: Set<string>): string {
   }
 }
 
+type Edit =
+  | { line: number; kind: 'append'; id: string } // ` ^id` an Zeile anhängen
+  | { line: number; kind: 'after'; text: string } // neue Zeile nach `line` einfügen
+  | { line: number; kind: 'replace'; text: string };
+
 /**
- * Ergänzt fehlende Karten-IDs (` ^k-…` am Ende des letzten Inhalts der Karte) und
- * Übungs-IDs (`id: u-…` als erste YAML-Zeile). Ändert sonst nichts; BOM und
- * Zeilenenden (LF oder CRLF) bleiben erhalten. Neue IDs werden in `taken` eingetragen.
+ * Ergänzt fehlende Karten-IDs (` ^k-…` am Ende des letzten Inhalts der Karte, bzw. in einer
+ * eigenen Zeile nach einem Code-, Formel- oder Tabellenblock) und Übungs-IDs (`id: u-…`).
+ * Ändert sonst nichts; BOM und Zeilenenden bleiben erhalten. Neue IDs werden in `taken`
+ * eingetragen. Dateien mit kaputtem Frontmatter werden nicht angefasst.
  */
 export function ensureIds(text: string, taken: Set<string>): { text: string; added: string[] } {
-  const bom = text.startsWith('\uFEFF') ? '\uFEFF' : '';
+  const bom = text.startsWith('﻿') ? '﻿' : '';
   const raw = bom ? text.slice(1) : text;
   const eol = raw.includes('\r\n') ? '\r\n' : '\n';
-  const lines = raw.split(/\r?\n/);
+  const lines = raw.split(/\r\n|\r|\n/);
   const topic = parseTopic(raw);
+  if (topic.fehler.some((f) => f.startsWith('Frontmatter'))) return { text, added: [] };
 
   for (const k of topic.karten) if (k.id) taken.add(k.id);
   for (const u of topic.uebungen) if (u.id) taken.add(u.id);
 
-  // Karten-IDs werden an bestehende Zeilen angehängt (keine Verschiebung);
-  // Übungs-IDs sind neue Zeilen und werden danach von unten nach oben eingefügt.
-  const cardIds: string[] = [];
+  const added: string[] = [];
+  const edits: Edit[] = [];
   for (const k of topic.karten) {
     if (k.id) continue;
-    const last = lastContentLine(lines, k.zeile - 1);
     const id = newId('k', taken);
     taken.add(id);
-    cardIds.push(id);
-    lines[last] = `${(lines[last] ?? '').trimEnd()} ^${id}`;
+    added.push(id);
+    const idx = k.ende - 1;
+    if (BLOCK_END.test(lines[idx] ?? '')) edits.push({ line: idx, kind: 'after', text: `^${id}` });
+    else edits.push({ line: idx, kind: 'append', id });
   }
-  const inserts: { at: number; id: string }[] = [];
   for (const u of topic.uebungen) {
     if (u.id) continue;
     const id = newId('u', taken);
     taken.add(id);
-    inserts.push({ at: u.zeile, id }); // zeile = ```uebung-Zeile (1-basiert) → Index danach
+    added.push(id);
+    if (u.idZeile !== null) edits.push({ line: u.idZeile - 1, kind: 'replace', text: `id: ${id}` });
+    else edits.push({ line: u.zeile - 1, kind: 'after', text: `id: ${id}` });
   }
-  for (const ins of inserts.sort((a, b) => b.at - a.at)) lines.splice(ins.at, 0, `id: ${ins.id}`);
-
-  const added = [...cardIds, ...inserts.map((i) => i.id)];
   if (added.length === 0) return { text, added };
-  return { text: bom + lines.join(eol), added };
-}
 
-/** Index (0-basiert) der letzten Inhaltszeile einer Karte, die bei `start` beginnt. */
-function lastContentLine(lines: string[], start: number): number {
-  let end = start + 1;
-  while (end < lines.length && !/^\*\*F:\*\*/.test(lines[end] ?? '') && !/^## /.test(lines[end] ?? '')) end++;
-  let last = end - 1;
-  while (last > start && ((lines[last] ?? '').trim() === '' || (lines[last] ?? '').trim() === RETIRED)) last--;
-  return last;
+  // Von unten nach oben anwenden, damit die Zeilennummern gültig bleiben.
+  for (const e of edits.sort((a, b) => b.line - a.line)) {
+    if (e.kind === 'append') lines[e.line] = `${(lines[e.line] ?? '').trimEnd()} ^${e.id}`;
+    else if (e.kind === 'replace') lines[e.line] = e.text;
+    else lines.splice(e.line + 1, 0, e.text);
+  }
+  return { text: bom + lines.join(eol), added };
 }
 
 /** ID → Fundorte (`pfad:zeile`), nur IDs mit mehr als einem Vorkommen. */

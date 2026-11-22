@@ -6,6 +6,8 @@ const CARD_START = /^\*\*F:\*\*/;
 const ANSWER_START = /^\*\*A:\*\*/;
 const RETIRED = '%%zurückgezogen%%';
 const CARD_ID = /\s*\^(k-[a-z0-9]{6})\s*$/;
+const EXERCISE_ID = /^u-[a-z0-9]{6}$/;
+const FENCE = /^\s*```/;
 const EXERCISE_TYPES: readonly ExerciseType[] = ['eingabe', 'schritte', 'mc', 'offen'];
 const REQUIRED_FIELDS = ['id', 'fach', 'kapitel', 'titel', 'quellen', 'stand'] as const;
 
@@ -21,7 +23,11 @@ export function parseTopic(text: string): Topic {
     ({ data, body, bodyStartLine } = splitFrontmatter(src));
   } catch (e) {
     fehler.push(`Frontmatter ungültig: ${(e as Error).message.split('\n')[0]}`);
-    body = src.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    const m = /^---\n[\s\S]*?\n---(?:\n|$)/.exec(src);
+    if (m) {
+      body = src.slice(m[0].length);
+      bodyStartLine = m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) + 1;
+    }
   }
 
   for (const f of REQUIRED_FIELDS) {
@@ -54,8 +60,13 @@ function str(v: unknown): string {
   return v === undefined || v === null ? '' : String(v);
 }
 
+interface Line {
+  text: string;
+  no: number; // 1-basierte Zeile in der Originaldatei
+}
+
 interface Block {
-  lines: string[];
+  lines: Line[];
   start: number;
   retired: boolean;
 }
@@ -65,51 +76,60 @@ function parseCards(sec: { text: string; startLine: number }, fehler: string[]):
   const blocks: Block[] = [];
   let current: Block | null = null;
   let retireNext = false;
+  let inFence = false;
 
-  lines.forEach((line, i) => {
-    const lineNo = sec.startLine + i;
-    if (line.trim() === RETIRED) {
+  lines.forEach((text, i) => {
+    const no = sec.startLine + i;
+    if (!inFence && text.trim() === RETIRED) {
       // Marker vor der nächsten F-Zeile (nur Leerzeilen dazwischen) gehört zur nächsten Karte.
       const next = lines.slice(i + 1).find((l) => l.trim() !== '');
-      if (next !== undefined && CARD_START.test(next)) retireNext = true;
-      else if (current) current.retired = true;
-      return;
-    }
-    if (CARD_START.test(line)) {
-      current = { lines: [line], start: lineNo, retired: retireNext };
+      if (next !== undefined && CARD_START.test(next)) {
+        retireNext = true;
+        return;
+      }
+      if (current) current.retired = true;
+    } else if (!inFence && CARD_START.test(text)) {
+      current = { lines: [], start: no, retired: retireNext };
       blocks.push(current);
       retireNext = false;
-      return;
     }
-    current?.lines.push(line);
+    if (FENCE.test(text)) inFence = !inFence;
+    current?.lines.push({ text, no });
   });
 
   const cards: Card[] = [];
   for (const b of blocks) {
-    let blockLines = b.lines.map((l) => (l.includes(RETIRED) ? l.replace(RETIRED, '') : l));
-    if (b.lines.some((l) => l.includes(RETIRED))) b.retired = true;
-    while (blockLines.length && (blockLines[blockLines.length - 1] ?? '').trim() === '') blockLines.pop();
+    // Marker und Leerzeilen am Ende abschneiden; Zeilennummern bleiben erhalten.
+    let ls = b.lines.map((l) => ({ ...l, text: l.text.includes(RETIRED) ? l.text.replace(RETIRED, '') : l.text }));
+    if (b.lines.some((l) => l.text.includes(RETIRED))) b.retired = true;
+    while (ls.length && (ls[ls.length - 1]?.text ?? '').trim() === '') ls.pop();
 
+    // Die ID darf am Ende einer beliebigen Zeile stehen (auch eigene Zeile); die letzte zählt.
     let id: string | null = null;
-    const lastIdx = blockLines.length - 1;
-    const m = CARD_ID.exec(blockLines[lastIdx] ?? '');
-    if (m) {
-      id = m[1] ?? null;
-      blockLines = [...blockLines.slice(0, lastIdx), (blockLines[lastIdx] ?? '').replace(CARD_ID, '')];
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const m = CARD_ID.exec(ls[i]!.text);
+      if (m) {
+        id = m[1] ?? null;
+        ls[i] = { ...ls[i]!, text: ls[i]!.text.replace(CARD_ID, '') };
+        break;
+      }
     }
+    while (ls.length && (ls[ls.length - 1]?.text ?? '').trim() === '') ls.pop();
+    const ende = ls[ls.length - 1]?.no ?? b.start;
 
-    const aIdx = blockLines.findIndex((l) => ANSWER_START.test(l));
+    const texts = ls.map((l) => l.text);
+    const aIdx = texts.findIndex((l) => ANSWER_START.test(l));
     if (aIdx < 0) {
       fehler.push(`Karte Zeile ${b.start}: Antwort fehlt`);
       continue;
     }
-    const frage = [(blockLines[0] ?? '').replace(CARD_START, ''), ...blockLines.slice(1, aIdx)].join('\n').trim();
-    const antwort = [(blockLines[aIdx] ?? '').replace(ANSWER_START, ''), ...blockLines.slice(aIdx + 1)].join('\n').trim();
+    const frage = [(texts[0] ?? '').replace(CARD_START, ''), ...texts.slice(1, aIdx)].join('\n').trim();
+    const antwort = [(texts[aIdx] ?? '').replace(ANSWER_START, ''), ...texts.slice(aIdx + 1)].join('\n').trim();
     if (!frage) {
       fehler.push(`Karte Zeile ${b.start}: Frage fehlt`);
       continue;
     }
-    cards.push({ id, frage, antwort, zurueckgezogen: b.retired, zeile: b.start });
+    cards.push({ id, frage, antwort, zurueckgezogen: b.retired, zeile: b.start, ende });
   }
   return cards;
 }
@@ -125,7 +145,10 @@ function parseExercises(sec: { text: string; startLine: number }, fehler: string
       fehler.push(`Übung Zeile ${start}: Block nicht geschlossen`);
       break;
     }
-    const yamlText = lines.slice(i + 1, end).join('\n');
+    const blockLines = lines.slice(i + 1, end);
+    const yamlText = blockLines.join('\n');
+    const idIdx = blockLines.findIndex((l) => /^id\s*:/.test(l));
+    const idZeile = idIdx >= 0 ? start + 1 + idIdx : null;
     i = end;
     let raw: unknown;
     try {
@@ -134,7 +157,7 @@ function parseExercises(sec: { text: string; startLine: number }, fehler: string
       fehler.push(`Übung Zeile ${start}: YAML ungültig (${(e as Error).message.split('\n')[0]})`);
       continue;
     }
-    const ex = toExercise(raw, start);
+    const ex = toExercise(raw, start, idZeile);
     if (typeof ex === 'string') fehler.push(`Übung Zeile ${start}: ${ex}`);
     else out.push(ex);
   }
@@ -142,14 +165,15 @@ function parseExercises(sec: { text: string; startLine: number }, fehler: string
 }
 
 /** Baut eine Übung oder liefert eine Fehlermeldung. */
-function toExercise(raw: unknown, zeile: number): Exercise | string {
+function toExercise(raw: unknown, zeile: number, idZeile: number | null): Exercise | string {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'Block ist kein YAML-Objekt';
   const r = raw as Record<string, unknown>;
   const typ = r.typ as ExerciseType;
   if (!EXERCISE_TYPES.includes(typ)) return `typ muss einer von ${EXERCISE_TYPES.join(', ')} sein`;
   if (typeof r.frage !== 'string' || !r.frage.trim()) return 'frage fehlt';
-  const id = typeof r.id === 'string' && r.id ? r.id : null;
-  const ex: Exercise = { id, typ, frage: r.frage, zurueckgezogen: r.status === 'zurückgezogen', zeile };
+  // Nur gültige IDs zählen; leere oder fremde Werte ersetzt ensureIds an idZeile.
+  const id = typeof r.id === 'string' && EXERCISE_ID.test(r.id) ? r.id : null;
+  const ex: Exercise = { id, typ, frage: r.frage, zurueckgezogen: r.status === 'zurückgezogen', zeile, idZeile };
 
   switch (typ) {
     case 'eingabe':

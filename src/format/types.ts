@@ -7,6 +7,8 @@ export interface Card {
   zurueckgezogen: boolean;
   /** 1-basierte Zeile der `**F:**`-Zeile in der Originaldatei */
   zeile: number;
+  /** 1-basierte Zeile des letzten Inhalts der Karte (ohne eigene ID-Zeile) */
+  ende: number;
 }
 
 export interface Exercise {
@@ -22,6 +24,8 @@ export interface Exercise {
   zurueckgezogen: boolean;
   /** 1-basierte Zeile der öffnenden ```uebung-Zeile */
   zeile: number;
+  /** 1-basierte Zeile eines vorhandenen `id:`-Schlüssels (auch leer/ungültig), sonst null */
+  idZeile: number | null;
 }
 
 export interface MindmapNode {
