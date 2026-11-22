@@ -1,0 +1,32 @@
+{
+  "name": "lernapp",
+  "version": "1.0.0",
+  "description": "Lern-App fuer Schulstoff",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "build-index": "tsx scripts/build-index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Malvonius/lernapp.git"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Malvonius/lernapp/issues"
+  },
+  "homepage": "https://github.com/Malvonius/lernapp#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
+  "private": true
+}
