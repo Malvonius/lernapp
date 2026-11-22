@@ -73,7 +73,7 @@ function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; t
             role="tab"
             id={`reiter-${r.id}`}
             aria-selected={aktiv === r.id}
-            aria-controls={`feld-${r.id}`}
+            aria-controls={aktiv === r.id ? `feld-${r.id}` : undefined}
             className="reiter__knopf"
             onClick={() => setAktiv(r.id)}
           >
