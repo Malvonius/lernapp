@@ -28,4 +28,8 @@ describe('sections', () => {
     expect(s.get('Zusammenfassung')!.text).toBe('Text');
     expect(s.get('Lernkarten')!.startLine).toBe(5);
   });
+  it('startLine zeigt nach führenden Leerzeilen auf die erste Inhaltszeile', () => {
+    const s = sections('## Lernkarten\n\n\n**F:** x', 1);
+    expect(s.get('Lernkarten')).toEqual({ text: '**F:** x', startLine: 4 });
+  });
 });

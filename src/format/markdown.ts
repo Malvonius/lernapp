@@ -43,7 +43,12 @@ export function sections(body: string, startLine: number): Map<string, Section> 
   let inFence = false;
   const flush = () => {
     if (current && !out.has(current.name)) {
-      out.set(current.name, { text: current.lines.join('\n').trim(), startLine: current.start });
+      let skip = 0;
+      while (skip < current.lines.length && (current.lines[skip] ?? '').trim() === '') skip++;
+      out.set(current.name, {
+        text: current.lines.slice(skip).join('\n').trimEnd(),
+        startLine: current.start + skip,
+      });
     }
   };
   lines.forEach((line, i) => {
