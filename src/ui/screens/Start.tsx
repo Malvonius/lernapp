@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { IndexSubject } from '../../format/types';
+import { MAX_NEUE_PRO_SITZUNG } from './Wiederholen';
 import { aktiveKartenIds, themenPfade, useAppData } from '../../state/AppData';
 import { fachStatus, STATUS_REIHE, type Status } from '../../lib/status';
 import { STATUS_LABEL } from '../components/Ampel';
@@ -43,8 +44,11 @@ function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<
 }
 
 export function Start() {
-  const { index, faellig, syncStatus } = useAppData();
+  const { index, faellig, kartenZustand, syncStatus } = useAppData();
   const faelligSet = new Set(faellig);
+  // faellig enthält auch neue Karten (ohne Ereignis); die zählen getrennt, höchstens 20 pro Sitzung
+  const neu = faellig.filter((id) => !kartenZustand.has(id)).length;
+  const ueberfaellig = faellig.length - neu;
 
   return (
     <section className="screen" aria-labelledby="start-h">
@@ -54,7 +58,7 @@ export function Start() {
         <>
           <div className="start-aktionen">
             <Link to="/wiederholen" className="cta">
-              Jetzt wiederholen ({faellig.length} fällig)
+              Jetzt wiederholen ({ueberfaellig} fällig · {Math.min(neu, MAX_NEUE_PRO_SITZUNG)} neu)
             </Link>
             <Link to="/pruefung" className="button button--quiet start-pruefung">
               Prüfung starten

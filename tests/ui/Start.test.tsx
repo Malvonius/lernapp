@@ -42,7 +42,7 @@ describe('Startseite', () => {
     expect(kachel).toHaveAttribute('href', '#/fach/mathe');
     expect(kachel).toHaveTextContent(/2 Themen/);
     // 3 aktive Karten mit ID in den Fixtures (die zurückgezogene zählt nicht)
-    const wiederholen = screen.getByRole('link', { name: 'Jetzt wiederholen (3 fällig)' });
+    const wiederholen = screen.getByRole('link', { name: 'Jetzt wiederholen (0 fällig · 3 neu)' });
     expect(wiederholen).toHaveAttribute('href', '#/wiederholen');
     expect(screen.getByRole('link', { name: 'Prüfung starten' })).toHaveAttribute('href', '#/pruefung');
   });

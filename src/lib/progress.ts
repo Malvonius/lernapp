@@ -1,4 +1,4 @@
-import { createEmptyCard, fsrs, generatorParameters, type Card as FsrsCard, type Grade } from 'ts-fsrs';
+import { createEmptyCard, fsrs, generatorParameters, Rating, type Card as FsrsCard, type Grade } from 'ts-fsrs';
 
 export type Bewertung = 1 | 2 | 3 | 4; // Nochmal, Schwer, Gut, Einfach
 export type Ereignis =
@@ -45,6 +45,27 @@ export function dueCards(zustand: Map<string, FsrsCard>, alleKartenIds: string[]
     const k = zustand.get(id);
     return !k || k.due.getTime() <= jetzt.getTime();
   });
+}
+
+/** Nächste Fälligkeit je Bewertung (1–4) für eine Karte; `undefined` = neue Karte. Gleicher Scheduler wie replayCards. */
+export function vorschau(karte: FsrsCard | undefined, jetzt: Date): Record<Bewertung, Date> {
+  // Liegt die letzte Wiederholung nach `jetzt` (Uhr/Sync hinkt), ab dort rechnen statt mit negativer Zeitspanne.
+  const t = karte?.last_review && karte.last_review.getTime() > jetzt.getTime() ? karte.last_review : jetzt;
+  const log = scheduler.repeat(karte ?? createEmptyCard(t), t);
+  return { 1: log[Rating.Again].card.due, 2: log[Rating.Hard].card.due, 3: log[Rating.Good].card.due, 4: log[Rating.Easy].card.due };
+}
+
+/** Kurzform eines Intervalls auf Deutsch: „1 Min“, „3 Std“, „4 Tage“, „2 Mon“, „1 Jahr“. */
+export function formatIntervall(ms: number): string {
+  const min = Math.round(ms / 60_000);
+  if (min < 60) return `${Math.max(min, 1)} Min`;
+  const std = Math.round(ms / 3_600_000);
+  if (std < 24) return `${std} Std`;
+  const tage = Math.round(ms / 86_400_000);
+  if (tage < 30) return `${tage} ${tage === 1 ? 'Tag' : 'Tage'}`;
+  if (tage < 365) return `${Math.round(tage / 30)} Mon`;
+  const jahre = Math.round(tage / 365);
+  return `${jahre} ${jahre === 1 ? 'Jahr' : 'Jahre'}`;
 }
 
 export function uebungStand(ereignisse: Ereignis[]): Map<string, { versuche: number; zuletztRichtig: boolean }> {

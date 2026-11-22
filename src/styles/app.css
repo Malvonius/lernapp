@@ -330,3 +330,34 @@ main { flex: 1; display: flex; flex-direction: column; }
 .mindmap { width: 100%; height: 60vh; min-height: 320px; border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); touch-action: none; color: var(--c-text); }
 .mindmap text { fill: var(--c-text); }
 .mindmap .markmap-link { stroke-opacity: 0.8; }
+
+/* Wiederholen */
+.lernfortschritt { color: var(--c-muted); font-size: var(--fs-sm); margin: 0 0 var(--sp-3); }
+.lernkarte { border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); padding: var(--sp-5); display: grid; gap: var(--sp-4); }
+.lernkarte__frage { font-size: var(--fs-md); font-weight: 600; }
+.lernkarte__antwort { border-top: 1px dashed var(--c-line); padding-top: var(--sp-4); }
+.lernkarte__aktion { justify-self: start; }
+.lernkarte__aufdecken { width: 100%; }
+.bewertung { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-2); }
+.bewertung__knopf {
+  display: grid;
+  gap: 2px;
+  min-height: calc(var(--touch) * 1.3);
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-weight: 600;
+  color: var(--c-text);
+  background: var(--c-raised);
+  border: 2px solid var(--c-line);
+  border-radius: var(--r-field);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.bewertung__knopf small { color: var(--c-muted); font-weight: 400; font-size: var(--fs-sm); }
+.bewertung__knopf:active { transform: scale(0.97); }
+.bewertung__knopf--1 { border-color: var(--c-st-rot); }
+.bewertung__knopf--2 { border-color: var(--c-st-gelb); }
+.bewertung__knopf--3 { border-color: var(--c-st-gruen); }
+.bewertung__knopf--4 { border-color: var(--c-st-neu); }
+@media (min-width: 560px) { .bewertung { grid-template-columns: repeat(4, 1fr); } }
+.verteilung { list-style: none; margin: 0 0 var(--sp-4); padding: 0; display: grid; gap: var(--sp-1); }

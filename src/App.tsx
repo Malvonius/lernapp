@@ -1,13 +1,15 @@
-import { HashRouter, Link, Route, Routes } from 'react-router-dom';
+import { HashRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/AppData';
 import { Fach } from './ui/screens/Fach';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
 import { Start } from './ui/screens/Start';
 import { Thema } from './ui/screens/Thema';
+import { Wiederholen } from './ui/screens/Wiederholen';
 
 function Routen() {
   const { bereit, hatToken } = useAppData();
+  const { search } = useLocation();
   if (!bereit) {
     return (
       <section className="screen" aria-busy="true">
@@ -20,7 +22,8 @@ function Routen() {
       <Route path="/" element={hatToken ? <Start /> : <Einstellungen />} />
       <Route path="/fach/:fachId" element={<Fach />} />
       <Route path="/thema/:fachId/:themaId" element={<Thema />} />
-      <Route path="/wiederholen" element={<Platzhalter titel="Wiederholen" />} />
+      {/* key: andere Query (Fach/Thema) = neue Sitzung */}
+      <Route path="/wiederholen" element={<Wiederholen key={search} />} />
       <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />
       <Route path="/suche" element={<Platzhalter titel="Suche" />} />
       <Route path="/einstellungen" element={<Einstellungen />} />
