@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubError, type GitHubClient } from '../../src/lib/github';
 import { addEvents, getAllEvents, getOutbox, openLernDb } from '../../src/lib/db';
 import type { Ereignis, FortschrittsDatei } from '../../src/lib/progress';
@@ -55,6 +55,12 @@ describe('recordEvent', () => {
     expect(await getAllEvents(db)).toHaveLength(1);
     expect(await getOutbox(db)).toHaveLength(1);
   });
+  it('schreibt beide Stores in einer Transaktion', async () => {
+    const spy = vi.spyOn(db, 'transaction');
+    await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z'));
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toEqual(['events', 'outbox']);
+  });
   it('lehnt ungültige zeit ab', async () => {
     await expect(recordEvent(db, ev('pc', 'gestern'))).rejects.toThrow();
     await expect(recordEvent(db, ev('pc', '2026-11-22T10:00:00Z'))).rejects.toThrow();
@@ -87,8 +93,10 @@ describe('syncProgress', () => {
     const repo = new FakeRepo();
     await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z'));
     const orig = repo.putFile.bind(repo);
-    repo.putFile = async () => { throw new GitHubError('conflict', 409); };
+    let versuche = 0;
+    repo.putFile = async () => { versuche++; throw new GitHubError('conflict', 409); };
     await expect(syncProgress(repo, db, 'pc')).rejects.toMatchObject({ kind: 'conflict' });
+    expect(versuche).toBe(3);
     expect(await getOutbox(db)).toHaveLength(1);
     repo.putFile = orig;
   });
@@ -139,5 +147,35 @@ describe('syncProgress', () => {
     expect(r.hochgeladen).toBe(0);
     expect(repo.puts).toBe(0);
     expect(await getOutbox(db)).toHaveLength(0);
+  });
+
+  it('Ereignis während des Syncs bleibt in der Outbox', async () => {
+    const repo = new FakeRepo();
+    await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z', 'a'));
+    repo.beforePut = () => { void recordEvent(db, ev('pc', '2026-11-22T10:05:00.000Z', 'spaet')); };
+    await syncProgress(repo, db, 'pc');
+    await new Promise((r) => setTimeout(r, 20));
+    expect((await getOutbox(db)).map((e) => e.ziel)).toEqual(['spaet']);
+  });
+
+  it('verwirft ungültige fremde Ereignisse einzeln', async () => {
+    const repo = new FakeRepo();
+    const gut = ev('handy', '2026-11-21T10:00:00.000Z', 'ok');
+    const z = '2026-11-21T10:00:00.000Z';
+    const kaputt = [
+      { art: 'karte', ziel: 'x', zeit: z, geraet: 'handy' },
+      { art: 'karte', ziel: 'x', zeit: z, geraet: 'handy', bewertung: 7 },
+      { art: 'uebung', ziel: 'x', zeit: z, geraet: 'handy', richtig: 'ja' },
+      { art: 'pruefung', ziel: 'x', zeit: z, geraet: 'handy', punkte: 1 },
+      { art: 'karte', ziel: 'x', zeit: 'gestern', geraet: 'handy', bewertung: 3 },
+      { art: 'foo', ziel: 'x', zeit: z, geraet: 'handy' },
+    ] as unknown as Ereignis[];
+    repo.set('_fortschritt/handy.json', datei('handy', [gut, ...kaputt]));
+    await syncProgress(repo, db, 'pc');
+    expect((await getAllEvents(db)).map((e) => e.ziel)).toEqual(['ok']);
+  });
+
+  it('leerer Gerätename: normaler Error', async () => {
+    await expect(syncProgress(new FakeRepo(), db, '')).rejects.not.toBeInstanceOf(GitHubError);
   });
 });

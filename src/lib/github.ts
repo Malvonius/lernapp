@@ -69,6 +69,7 @@ export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...
     try {
       return await fetchImpl(url, {
         ...init,
+        cache: 'no-store', // Contents-API sendet max-age=60: nach Konflikt sonst alter sha
         headers: { Authorization: `Bearer ${token}`, Accept: accept, ...extra },
       });
     } catch {

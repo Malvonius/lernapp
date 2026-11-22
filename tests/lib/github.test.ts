@@ -179,4 +179,15 @@ describe('testAccess', () => {
     const { gh } = client(async () => res(401));
     expect((await catchErr(gh.testAccess())).kind).toBe('auth');
   });
+
+  it('alle Requests mit cache: no-store', async () => {
+    const { gh, f } = client(async (u) => (u.includes('raw') ? res(200, 'x') : res(200, [])));
+    await gh.listDir('d');
+    await gh.getRaw('a.md');
+    await gh.getFile('a.md').catch(() => null);
+    await gh.putFile('a.md', 't', null, 'm').catch(() => null);
+    await gh.testAccess();
+    expect(f.mock.calls.length).toBeGreaterThanOrEqual(4);
+    for (const c of f.mock.calls) expect((c[1] as RequestInit).cache).toBe('no-store');
+  });
 });

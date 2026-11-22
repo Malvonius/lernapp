@@ -61,3 +61,9 @@ export async function clearOutbox(db: LernDatabase, ids: EventKey[]): Promise<vo
   const tx = db.transaction('outbox', 'readwrite');
   await Promise.all([...ids.map((k) => tx.store.delete(k)), tx.done]);
 }
+
+/** Ereignis atomar in events UND outbox: bricht die App dazwischen ab, geht nichts verloren. */
+export async function addEventWithOutbox(db: LernDatabase, e: StoredEvent): Promise<void> {
+  const tx = db.transaction(['events', 'outbox'], 'readwrite');
+  await Promise.all([tx.objectStore('events').put(e), tx.objectStore('outbox').put(e), tx.done]);
+}

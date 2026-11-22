@@ -1,5 +1,5 @@
 import { GitHubError, type GitHubClient } from './github';
-import { addEvents, addToOutbox, clearOutbox, eventKey, getOutbox, type LernDatabase, type StoredEvent } from './db';
+import { addEvents, addEventWithOutbox, clearOutbox, eventKey, getOutbox, type LernDatabase, type StoredEvent } from './db';
 import { mergeEvents, type Ereignis, type FortschrittsDatei } from './progress';
 
 const DIR = '_fortschritt';
@@ -7,14 +7,29 @@ const MAX_VERSUCHE = 3;
 
 export function normalizeGeraet(name: string): string {
   const n = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  if (!n) throw new GitHubError('other');
+  if (!n) throw new Error('Gerätename darf nicht leer sein.');
   return n;
 }
+
+/** zeit muss exakt dem Format von Date#toISOString entsprechen (einheitlich für Dedupe und Sortierung). */
+function zeitGueltig(zeit: unknown): boolean {
+  if (typeof zeit !== 'string') return false;
+  const d = new Date(zeit);
+  return !Number.isNaN(d.getTime()) && d.toISOString() === zeit;
+}
+
+const istZahl = (x: unknown) => typeof x === 'number' && Number.isFinite(x);
 
 const istEreignis = (x: unknown): x is Ereignis => {
   if (typeof x !== 'object' || x === null) return false;
   const e = x as Record<string, unknown>;
-  return ['art', 'ziel', 'zeit', 'geraet'].every((k) => typeof e[k] === 'string');
+  if (typeof e.ziel !== 'string' || typeof e.geraet !== 'string' || !zeitGueltig(e.zeit)) return false;
+  switch (e.art) {
+    case 'karte': return e.bewertung === 1 || e.bewertung === 2 || e.bewertung === 3 || e.bewertung === 4;
+    case 'uebung': return typeof e.richtig === 'boolean';
+    case 'pruefung': return istZahl(e.punkte) && istZahl(e.max);
+    default: return false;
+  }
 };
 
 /** Liest eine Fortschrittsdatei; null, wenn sie kein gültiges Version-1-JSON ist. */
@@ -28,17 +43,9 @@ function parseDatei(text: string): Ereignis[] | null {
   }
 }
 
-/** zeit muss exakt dem Format von Date#toISOString entsprechen (einheitlich für Dedupe und Sortierung). */
-function zeitGueltig(zeit: unknown): boolean {
-  if (typeof zeit !== 'string') return false;
-  const d = new Date(zeit);
-  return !Number.isNaN(d.getTime()) && d.toISOString() === zeit;
-}
-
 export async function recordEvent(db: LernDatabase, e: Ereignis): Promise<void> {
   if (!zeitGueltig(e.zeit)) throw new Error('Ungültige Zeit: erwartet new Date().toISOString().');
-  await addEvents(db, [e]);
-  await addToOutbox(db, [e]);
+  await addEventWithOutbox(db, e);
 }
 
 export async function syncProgress(
