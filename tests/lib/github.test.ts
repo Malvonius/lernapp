@@ -58,6 +58,10 @@ describe('Fehler', () => {
     const { gh } = client(async () => res(403, '', { 'x-ratelimit-remaining': '0' }));
     expect((await catchErr(gh.getRaw('a.md'))).kind).toBe('ratelimit');
   });
+  it('403 mit retry-after -> ratelimit', async () => {
+    const { gh } = client(async () => res(403, '', { 'retry-after': '60' }));
+    expect((await catchErr(gh.getRaw('a.md'))).kind).toBe('ratelimit');
+  });
   it('403 ohne Limit -> auth', async () => {
     const { gh } = client(async () => res(403));
     expect((await catchErr(gh.getRaw('a.md'))).kind).toBe('auth');
@@ -103,6 +107,21 @@ describe('getFile', () => {
     const withBreaks = b64.slice(0, 8) + '\n' + b64.slice(8);
     const { gh } = client(async () => res(200, { sha: 'S1', content: withBreaks, encoding: 'base64' }));
     expect(await gh.getFile('a.md')).toEqual({ text: 'Prüfung äöü', sha: 'S1' });
+  });
+  it('große Datei (encoding none): holt Raw, behält sha', async () => {
+    const f = vi.fn(async (_u: string, init?: RequestInit) =>
+      new Headers(init?.headers).get('accept') === 'application/vnd.github.raw+json'
+        ? res(200, 'großer Inhalt')
+        : res(200, { sha: 'abc', content: '', encoding: 'none', size: 2000000 }),
+    );
+    const gh = createGitHubClient(TOKEN, f as unknown as typeof fetch);
+    expect(await gh.getFile('a.md')).toEqual({ text: 'großer Inhalt', sha: 'abc' });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+  it('große Datei: schlägt Raw fehl, Fehler statt leerem Text', async () => {
+    let n = 0;
+    const { gh } = client(async () => (n++ === 0 ? res(200, { sha: 'abc', content: '', encoding: 'none', size: 2000000 }) : res(500)));
+    expect((await catchErr(gh.getFile('a.md'))).kind).toBe('other');
   });
   it('404 -> null', async () => {
     const { gh } = client(async () => res(404));

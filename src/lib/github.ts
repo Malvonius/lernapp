@@ -56,7 +56,7 @@ function errorFor(res: Response, put: boolean): GitHubError {
   const s = res.status;
   if (s === 401) return new GitHubError('auth', s);
   if (s === 403 || s === 429) {
-    const limited = res.headers.get('x-ratelimit-remaining') === '0' || s === 429;
+    const limited = res.headers.get('x-ratelimit-remaining') === '0' || res.headers.get('retry-after') !== null || s === 429;
     return new GitHubError(limited ? 'ratelimit' : 'auth', s);
   }
   if (s === 404) return new GitHubError('notfound', s);
@@ -89,8 +89,12 @@ export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...
       const res = await request(contentsUrl(path) + ref);
       if (res.status === 404) return null;
       if (!res.ok) throw errorFor(res, false);
-      const j = (await res.json()) as { sha: string; content: string };
-      return { text: fromBase64(j.content), sha: j.sha };
+      const j = (await res.json()) as { sha: string; content?: string; encoding?: string; size?: number };
+      if (j.encoding === 'base64' && typeof j.content === 'string') return { text: fromBase64(j.content), sha: j.sha };
+      // > 1 MB: Contents-API liefert keinen Inhalt; nie still leer zurückgeben (Überschreib-Gefahr)
+      const raw = await request(contentsUrl(path) + ref, {}, 'application/vnd.github.raw+json');
+      if (!raw.ok) throw errorFor(raw, false);
+      return { text: await raw.text(), sha: j.sha };
     },
     async putFile(path, text, sha, message) {
       const body: Record<string, string> = { message, content: toBase64(text), branch: REPO.branch };
