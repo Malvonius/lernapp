@@ -59,7 +59,7 @@ describe('recordEvent', () => {
     const spy = vi.spyOn(db, 'transaction');
     await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z'));
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0][0]).toEqual(['events', 'outbox']);
+    expect(spy.mock.calls[0]?.[0]).toEqual(['events', 'outbox']);
   });
   it('lehnt ungültige zeit ab', async () => {
     await expect(recordEvent(db, ev('pc', 'gestern'))).rejects.toThrow();
