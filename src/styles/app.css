@@ -1,0 +1,135 @@
+@import '@fontsource/grenze-gotisch/latin-600.css';
+@import '@fontsource/grenze-gotisch/latin-ext-600.css';
+@import '@fontsource-variable/atkinson-hyperlegible-next/index.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--sp-3);
+  letter-spacing: 0.01em;
+}
+h1 { font-size: var(--fs-2xl); }
+h2 { font-size: var(--fs-xl); }
+h3 { font-size: var(--fs-lg); }
+
+p { margin: 0 0 var(--sp-4); max-width: 65ch; }
+
+a { color: var(--fach); text-underline-offset: 0.2em; }
+
+:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+/* Grundlayout: eine Spalte, linksbündig, Handy zuerst */
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-bar {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 max(var(--gutter), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--c-line);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--c-text);
+  text-decoration: none;
+  min-height: var(--touch);
+  display: inline-flex;
+  align-items: center;
+}
+
+main { flex: 1; display: flex; flex-direction: column; }
+
+.screen {
+  flex: 1;
+  width: 100%;
+  max-width: calc(var(--measure) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: var(--sp-6) var(--gutter) var(--sp-7);
+}
+
+.lead { color: var(--c-muted); }
+
+/* Formulare */
+.field { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+.field label { font-weight: 600; }
+.field .hint { color: var(--c-muted); font-size: var(--fs-sm); margin: 0; }
+
+.input {
+  min-height: var(--touch);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-field);
+  transition: border-color var(--dur) var(--ease);
+}
+.input:focus { border-color: var(--fach); outline: none; }
+.input:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 1px; }
+
+/* Knöpfe */
+.button {
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding: var(--sp-2) var(--sp-5);
+  font: inherit;
+  font-weight: 600;
+  border-radius: var(--r-field);
+  border: 1px solid transparent;
+  background: var(--fach);
+  color: var(--c-on-accent);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.button:active { transform: scale(0.97); }
+.button--quiet { background: transparent; color: var(--c-text); border-color: var(--c-line); }
+.button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
