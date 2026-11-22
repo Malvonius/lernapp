@@ -1,9 +1,10 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Card, IndexSubject, IndexTopic, Topic } from '../../format/types';
+import type { Card, Exercise, IndexSubject, IndexTopic, Topic } from '../../format/types';
 import { useAppData } from '../../state/AppData';
 import { Markdown } from '../components/Markdown';
 import { Mindmap } from '../components/Mindmap';
+import { Uebung } from '../components/Uebung';
 
 type Reiter = 'text' | 'karten' | 'mindmap' | 'uebungen';
 
@@ -43,8 +44,22 @@ function KartenListe({ karten }: { karten: Card[] }) {
   );
 }
 
+function UebungenListe({ uebungen }: { uebungen: Exercise[] }) {
+  if (uebungen.length === 0) return <p className="lead">Keine Übungen in diesem Thema.</p>;
+  return (
+    <ol className="uebungen-liste">
+      {uebungen.map((u, i) => (
+        <li key={u.id ?? `zeile-${u.zeile}-${i}`}>
+          <Uebung ex={u} />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; themaId: string; topic: Topic; kopfAktion?: ReactNode }) {
   const aktive = topic.karten.filter((k) => !k.zurueckgezogen);
+  const aktiveUebungen = topic.uebungen.filter((u) => !u.zurueckgezogen);
   const reiter: { id: Reiter; label: string }[] = [
     { id: 'text', label: 'Text' },
     { id: 'karten', label: 'Karten' },
@@ -86,7 +101,7 @@ function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; t
           (topic.zusammenfassung.trim() ? <Markdown text={topic.zusammenfassung} /> : <p className="lead">Noch keine Zusammenfassung.</p>)}
         {aktiv === 'karten' && <KartenListe karten={aktive} />}
         {aktiv === 'mindmap' && topic.mindmap && <Mindmap root={topic.mindmap} />}
-        {aktiv === 'uebungen' && <p className="lead">Übungen folgen</p>}
+        {aktiv === 'uebungen' && <UebungenListe uebungen={aktiveUebungen} />}
       </div>
     </>
   );

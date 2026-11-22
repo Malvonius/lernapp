@@ -49,11 +49,19 @@ describe('Themenansicht', () => {
     expect(await screen.findByText(/Äußere mal innere/)).toBeInTheDocument();
   });
 
-  it('Reiter Mindmap nur wenn vorhanden; Übungen-Platzhalter existiert', async () => {
+  it('Reiter Mindmap nur wenn vorhanden', async () => {
     await oeffne('mathe-ableitungen');
     expect(await screen.findByRole('tab', { name: 'Mindmap' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Übungen' }));
-    expect(screen.getByText('Übungen folgen')).toBeInTheDocument();
+  });
+
+  it('Reiter Übungen zeigt die aktiven Übungen, Eingabe-Übung lässt sich prüfen', async () => {
+    await oeffne('mathe-ableitungen');
+    fireEvent.click(await screen.findByRole('tab', { name: 'Übungen' }));
+    const liste = await screen.findAllByRole('article');
+    expect(liste).toHaveLength(4);
+    fireEvent.change(within(liste[0]!).getByRole('textbox'), { target: { value: '12' } });
+    fireEvent.click(within(liste[0]!).getByRole('button', { name: 'Prüfen' }));
+    expect(await within(liste[0]!).findByText('Richtig')).toBeInTheDocument();
   });
 
   it('Thema ohne Mindmap hat keinen Reiter „Mindmap“', async () => {

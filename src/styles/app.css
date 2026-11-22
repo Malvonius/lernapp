@@ -361,3 +361,21 @@ main { flex: 1; display: flex; flex-direction: column; }
 .bewertung__knopf--4 { border-color: var(--c-st-neu); }
 @media (min-width: 560px) { .bewertung { grid-template-columns: repeat(4, 1fr); } }
 .verteilung { list-style: none; margin: 0 0 var(--sp-4); padding: 0; display: grid; gap: var(--sp-1); }
+
+/* Übungen */
+.uebungen-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
+.uebung { border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); padding: var(--sp-4); display: grid; gap: var(--sp-3); }
+.uebung__frage { font-weight: 600; }
+.uebung__eingabe { width: 100%; min-height: var(--touch); padding: var(--sp-2) var(--sp-3); font: inherit; color: var(--c-text); background: var(--c-bg); border: 1px solid var(--c-line); border-radius: var(--r-panel); }
+.uebung .button { justify-self: start; }
+.uebung__zeile { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.uebung__schritte { margin: 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-2); }
+.uebung__optionen { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.uebung__option label { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--touch); cursor: pointer; }
+.uebung__option input { width: 22px; height: 22px; flex: none; }
+.uebung__option--richtig { border-left: 3px solid var(--fach); padding-left: var(--sp-2); }
+.uebung__marke { color: var(--c-muted); font-size: var(--fs-sm); }
+.uebung__urteil { margin: 0; font-weight: 700; }
+.uebung__loesung { margin: 0; color: var(--c-muted); }
+.uebung__muster { border-top: 1px dashed var(--c-line); padding-top: var(--sp-3); }
+.uebung__aktion { display: flex; gap: var(--sp-3); }
