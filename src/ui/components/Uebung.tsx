@@ -39,10 +39,11 @@ function Selbsteinschaetzung({ onWahl }: { onWahl: (richtig: boolean) => void })
  * Eine Übung der vier Typen (eingabe, schritte, mc, offen). Das Ergebnis wird genau einmal gemeldet:
  * an `onErgebnis` und (wenn `aufzeichnen` und eine id da ist) an `record`.
  */
-export function Uebung({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungProps) {
+function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungProps) {
   const { record } = useAppData();
   const [ergebnis, setErgebnis] = useState<boolean | null>(null);
   const fertig = useRef(false);
+  const [speicherFehler, setSpeicherFehler] = useState(false);
 
   const [eingabe, setEingabe] = useState('');
   const [aufgedeckt, setAufgedeckt] = useState(0);
@@ -55,7 +56,7 @@ export function Uebung({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungPro
     fertig.current = true;
     setErgebnis(richtig);
     if (aufzeichnen && ex.id) {
-      void Promise.resolve(record({ art: 'uebung', ziel: ex.id, richtig })).catch(() => {});
+      void Promise.resolve(record({ art: 'uebung', ziel: ex.id, richtig })).catch(() => setSpeicherFehler(true));
     }
     onErgebnis?.(richtig);
   };
@@ -178,7 +179,15 @@ export function Uebung({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungPro
         </>
       )}
 
+      {speicherFehler && <p className="uebung__fehler" role="alert">Ergebnis konnte nicht gespeichert werden</p>}
+
       {aktion ? <div className="uebung__aktion">{aktion}</div> : null}
     </article>
   );
+}
+
+/** Der Zustand gehört zu einer Übung: bei anderer Übung wird die Komponente über den key neu aufgebaut. */
+export function Uebung(props: UebungProps) {
+  const { ex } = props;
+  return <UebungInhalt key={ex.id ?? `z${ex.zeile}:${ex.frage}`} {...props} />;
 }

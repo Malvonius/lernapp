@@ -28,11 +28,13 @@ describe('parseZahl', () => {
     ['100 mm', 100],
     ['5 m', 5],
     ['3.', 3],
+    ['3 m/s', 3],
+    ['2,5 mm²', 2.5],
   ])('%s → %s', (eingabe, erwartet) => {
     expect(parseZahl(eingabe)).toBeCloseTo(erwartet, 9);
   });
 
-  it.each(['abc', '', '   ', '1,2,3', '1 2', '€ 5', ',', '-'])('%j → null', (eingabe) => {
+  it.each(['abc', '', '   ', '1,2,3', '1 2', '€ 5', ',', '-', '1/2', '2,5-3', '1,5e3'])('%j → null', (eingabe) => {
     expect(parseZahl(eingabe)).toBeNull();
   });
 });
@@ -56,6 +58,19 @@ describe('pruefeEingabe', () => {
     expect(pruefeEingabe(e, '  kettenREGEL ')).toBe(true);
     expect(pruefeEingabe(ex({ loesung: 'a  b' }), 'A b')).toBe(true);
     expect(pruefeEingabe(e, 'Produktregel')).toBe(false);
+  });
+  it('String-Lösung mit Einheit wird numerisch verglichen', () => {
+    const p = ex({ loesung: '1,35 %' });
+    for (const x of ['1,35', '1,35%', '1,35 %']) expect(pruefeEingabe(p, x)).toBe(true);
+    expect(pruefeEingabe(p, '1,4')).toBe(false);
+    expect(pruefeEingabe(ex({ loesung: '24 703,21 €' }), '24703,21')).toBe(true);
+    expect(pruefeEingabe(ex({ loesung: '2,67 mm', toleranz: 0.01 }), '2,666')).toBe(true);
+  });
+  it('Text-Lösungen bleiben Text', () => {
+    expect(pruefeEingabe(ex({ loesung: '2x' }), '2x')).toBe(true);
+    expect(pruefeEingabe(ex({ loesung: '2x' }), '2')).toBe(false);
+    expect(pruefeEingabe(ex({ loesung: '3 Schritte' }), '3')).toBe(false);
+    expect(pruefeEingabe(ex({ loesung: 'x = 2' }), 'X = 2')).toBe(true);
   });
   it('ohne Lösung nie richtig', () => {
     expect(pruefeEingabe(ex({}), '1')).toBe(false);

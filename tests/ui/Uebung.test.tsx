@@ -62,6 +62,25 @@ describe('Uebung eingabe', () => {
   });
 });
 
+describe('Uebung Robustheit', () => {
+  it('record-Fehler wird dem Nutzer gezeigt', async () => {
+    record.mockRejectedValueOnce(new Error('x'));
+    render(<Uebung ex={ex({ loesung: 8 })} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Prüfen' }));
+    expect(await screen.findByText('Ergebnis konnte nicht gespeichert werden')).toBeInTheDocument();
+  });
+  it('Zustand wird bei anderer Übung zurückgesetzt', () => {
+    const { rerender } = render(<Uebung ex={ex({ id: 'u-1', loesung: 8 })} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Prüfen' }));
+    expect(screen.getByText('Richtig')).toBeInTheDocument();
+    rerender(<Uebung ex={ex({ id: 'u-2', loesung: 9 })} />);
+    expect(screen.queryByText('Richtig')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Prüfen' })).toBeInTheDocument();
+  });
+});
+
 describe('Uebung schritte', () => {
   const e = ex({ typ: 'schritte', schritte: ['Schritt A', 'Schritt B'] });
   it('deckt nacheinander auf, dann Selbsteinschätzung', () => {

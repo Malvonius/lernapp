@@ -19,9 +19,22 @@ const ZAHL_ANFANG = /^[+-]?\d[\d .,  ]*/;
  * - Leerzeichen innerhalb der Zahl sind nur als Tausendertrenner gültig, sonst ist die Eingabe ungültig („1 2“ → null).
  */
 export function parseZahl(eingabe: string): number | null {
+  return parseMitEinheit(eingabe)?.wert ?? null;
+}
+
+/** Nachgestellte Einheit/Symbol in der Eingabe: Buchstaben, %, €, $, °, µ, Ω, ², ³, „/“ und „·“ (z. B. „m/s“); keine Ziffern („1,5e3“ → ungültig). */
+const EINHEIT_EINGABE = /^[\p{L}%€$°µΩ²³][\p{L}%€$°µΩ²³/·]*\.?$/u;
+
+/** Bekannte Einheiten für die Lösungsseite („2x“ oder „3 Schritte“ sind keine Einheit, sondern Text). */
+const EINHEIT_LOESUNG =
+  /^(%|€|\$|°[CF]?|(?:[kKmMµcdnG]?(?:m|g|s|A|V|W|Hz|N|J|Pa|Ω|F|H|T|l|L|C|B))[²³]?|ha|min|h|kWh|bar|rad|K|mol|dB|ppm|EUR|USD)(\/[a-zA-Zµ]+[²³]?)?$/;
+
+function parseMitEinheit(eingabe: string): { wert: number; einheit: string } | null {
   const s = eingabe.trim().replace(/[−–]/g, '-');
   const m = ZAHL_ANFANG.exec(s);
   if (!m) return null;
+  const einheit = s.slice(m[0].length).trim();
+  if (einheit !== '' && !EINHEIT_EINGABE.test(einheit)) return null;
   // Abschließende Trenner gehören nicht zur Zahl („3.“, „5 m“ → „5“)
   let z = m[0].replace(/[ .,  ]+$/, '');
   let vorzeichen = 1;
@@ -61,7 +74,7 @@ export function parseZahl(eingabe: string): number | null {
     normal = z;
   }
   const n = Number(normal);
-  return Number.isFinite(n) ? vorzeichen * n : null;
+  return Number.isFinite(n) ? { wert: vorzeichen * n, einheit } : null;
 }
 
 function normalisiereText(t: string): string {
@@ -74,7 +87,11 @@ export function pruefeEingabe(ex: Exercise, eingabe: string): boolean {
   if (l === undefined) return false;
   let sollZahl: number | null = null;
   if (typeof l === 'number') sollZahl = l;
-  else if (/^[-−+]?[\d.,\s ]+$/.test(l.trim())) sollZahl = parseZahl(l);
+  else {
+    // String-Lösung ist numerisch, wenn sie eine Zahl mit bekannter Einheit (oder ohne) ist, z. B. „1,35 %“
+    const p = parseMitEinheit(l);
+    if (p && (p.einheit === '' || EINHEIT_LOESUNG.test(p.einheit))) sollZahl = p.wert;
+  }
 
   if (sollZahl !== null) {
     const x = parseZahl(eingabe);
