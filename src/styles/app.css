@@ -327,7 +327,12 @@ main { flex: 1; display: flex; flex-direction: column; }
 .karte-eintrag__frage { font-weight: 600; }
 .karte-eintrag__antwort { border-top: 1px dashed var(--c-line); padding-top: var(--sp-3); }
 .karte-eintrag .button { justify-self: start; }
-.mindmap { width: 100%; height: 60vh; min-height: 320px; border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); touch-action: none; color: var(--c-text); }
+/* Gesten erst nach „Zoomen und verschieben“: vorher bleibt die Seite per Wischen scrollbar (pan-y) */
+.mindmap-rahmen { display: grid; gap: var(--sp-2); }
+.mindmap { width: 100%; height: 50vh; min-height: 260px; border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); touch-action: pan-y; color: var(--c-text); }
+.mindmap--aktiv { touch-action: none; border-color: var(--fach, var(--c-accent)); }
+.mindmap__gesten { justify-self: start; }
+.mindmap__gesten[aria-pressed='true'] { color: var(--c-text); border-color: var(--fach, var(--c-accent)); }
 .mindmap text { fill: var(--c-text); }
 .mindmap .markmap-link { stroke-opacity: 0.8; }
 
