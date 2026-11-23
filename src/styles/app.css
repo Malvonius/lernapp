@@ -401,3 +401,23 @@ main { flex: 1; display: flex; flex-direction: column; }
 .askbob__feld { width: 100%; padding: var(--sp-2) var(--sp-3); font: inherit; color: var(--c-text); background: var(--c-bg); border: 1px solid var(--c-line); border-radius: var(--r-panel); }
 .askbob__zeile { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .askbob__meldung { margin: 0; color: var(--c-muted); font-size: var(--fs-sm); }
+
+/* Suche */
+.suche-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
+.suche-treffer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-height: var(--touch);
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--c-text);
+  text-decoration: none;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-field);
+}
+.suche-treffer:hover { background: var(--c-raised); }
+.suche-treffer__kopf { font-weight: 600; }
+.suche-treffer__meta { color: var(--c-muted); font-weight: 400; font-size: var(--fs-sm); }
+.suche-treffer__text { color: var(--c-muted); overflow-wrap: anywhere; }
+.suche-treffer mark { background: transparent; color: var(--c-text); font-weight: 700; text-decoration: underline; }
+.app-bar__aktionen { display: flex; align-items: center; }
