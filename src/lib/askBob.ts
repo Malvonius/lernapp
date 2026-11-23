@@ -38,12 +38,23 @@ export function bauePrompt(ctx: AskBobKontext): string {
 export type Uebergabe = 'geteilt' | 'kopiert' | 'abgebrochen' | 'manuell';
 
 /**
- * Übergibt den Text an die Claude-App (Teilen-Menü) oder kopiert ihn und öffnet claude.ai.
+ * Übergibt den Text am Handy an die Claude-App (Teilen-Menü), am PC kopiert er ihn und öffnet claude.ai.
  * 'manuell': keine Zwischenablage verfügbar, der Aufrufer zeigt den Text zum Selbstkopieren.
  * Es werden keine eigenen Netzwerkanfragen gemacht.
  */
+/** Handy/Tablet: nur dort führt das Teilen-Menü zur Claude-App (am PC öffnet Edge/Chrome ein nutzloses Windows-Teilen-Fenster). */
+function istMobil(): boolean {
+  const uad = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  if (uad?.mobile === true) return true;
+  try {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
 export async function uebergeben(text: string): Promise<Uebergabe> {
-  if (typeof navigator.share === 'function') {
+  if (typeof navigator.share === 'function' && istMobil()) {
     try {
       await navigator.share({ text });
       return 'geteilt';

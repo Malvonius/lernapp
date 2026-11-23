@@ -43,10 +43,12 @@ describe('uebergeben', () => {
 
   const stubNav = (nav: Record<string, unknown>) => vi.stubGlobal('navigator', nav);
 
+  const mobil = { userAgentData: { mobile: true } };
+
   it('teilt mit navigator.share({ text })', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     const open = vi.fn();
-    stubNav({ share });
+    stubNav({ share, ...mobil });
     vi.stubGlobal('window', { open });
     expect(await uebergeben('Hallo')).toBe('geteilt');
     expect(share).toHaveBeenCalledWith({ text: 'Hallo' });
@@ -56,7 +58,7 @@ describe('uebergeben', () => {
     const share = vi.fn().mockRejectedValue(new DOMException('x', 'AbortError'));
     const writeText = vi.fn();
     const open = vi.fn();
-    stubNav({ share, clipboard: { writeText } });
+    stubNav({ share, clipboard: { writeText }, ...mobil });
     vi.stubGlobal('window', { open });
     expect(await uebergeben('Hallo')).toBe('abgebrochen');
     expect(writeText).not.toHaveBeenCalled();
@@ -66,10 +68,31 @@ describe('uebergeben', () => {
     const share = vi.fn().mockRejectedValue(new Error('kaputt'));
     const writeText = vi.fn().mockResolvedValue(undefined);
     const open = vi.fn();
-    stubNav({ share, clipboard: { writeText } });
+    stubNav({ share, clipboard: { writeText }, ...mobil });
     vi.stubGlobal('window', { open });
     expect(await uebergeben('Hallo')).toBe('kopiert');
     expect(writeText).toHaveBeenCalledWith('Hallo');
+  });
+  it('Touch-Gerät (pointer: coarse) ohne userAgentData → teilt', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const open = vi.fn();
+    const matchMedia = vi.fn((q: string) => ({ matches: q === '(pointer: coarse)' }));
+    stubNav({ share });
+    vi.stubGlobal('window', { open, matchMedia });
+    expect(await uebergeben('Hallo')).toBe('geteilt');
+    expect(share).toHaveBeenCalledWith({ text: 'Hallo' });
+  });
+  it('PC (Edge mit share, feiner Zeiger): kein Teilen-Menü, sondern kopieren und claude.ai öffnen', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const open = vi.fn();
+    const matchMedia = vi.fn(() => ({ matches: false }));
+    stubNav({ share, clipboard: { writeText }, userAgentData: { mobile: false } });
+    vi.stubGlobal('window', { open, matchMedia });
+    expect(await uebergeben('Hallo')).toBe('kopiert');
+    expect(share).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('Hallo');
+    expect(open).toHaveBeenCalledWith('https://claude.ai/new', '_blank', 'noopener');
   });
   it('ohne share: kopiert und öffnet claude.ai', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

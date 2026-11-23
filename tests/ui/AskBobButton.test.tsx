@@ -21,7 +21,7 @@ describe('AskBobButton', () => {
 
   it('teilt den Prompt und meldet „In die Claude-App geteilt“', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal('navigator', { share });
+    vi.stubGlobal('navigator', { share, userAgentData: { mobile: true } });
     render(<AskBobButton {...ctx} element={{ art: 'karte', frage: 'F?', antwort: 'A' }} />);
     oeffnen();
     fireEvent.change(screen.getByLabelText('Deine Frage'), { target: { value: 'Warum?' } });
@@ -48,7 +48,7 @@ describe('AskBobButton', () => {
 
   it('Abbruch im Teilen-Menü zeigt keine Erfolgsmeldung', async () => {
     const share = vi.fn().mockRejectedValue(new DOMException('x', 'AbortError'));
-    vi.stubGlobal('navigator', { share });
+    vi.stubGlobal('navigator', { share, userAgentData: { mobile: true } });
     render(<AskBobButton {...ctx} />);
     oeffnen();
     fireEvent.change(screen.getByLabelText('Deine Frage'), { target: { value: 'Warum?' } });
