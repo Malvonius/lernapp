@@ -10,7 +10,7 @@ Dieses Repo enthält **nur Code**. Der Lernstoff liegt in einem separaten, priva
 |---|---|
 | Format-Parser, ID-Vergabe, Index-Bau (`src/format/`, `scripts/build-index.ts`) | fertig, getestet |
 | App (Start, Fach mit Ampel, Thema, Wiederholen mit FSRS, Übungen, Prüfung, Suche, „Frag Bob“, offline, Sync zwischen Geräten) | live unter https://malvonius.github.io/lernapp/ |
-| Einspielen aus der App, Cloud-Routine, OneDrive-Job | folgt (Plan 3) |
+| Unterlagen hochladen (nach `lernstoff/_inbox/`), Rückfragen von Bob anzeigen | live (Plan 3); Umwandlung macht Bob auf Zuruf im Chat |
 
 ## Installieren
 
@@ -22,6 +22,10 @@ Dieses Repo enthält **nur Code**. Der Lernstoff liegt in einem separaten, priva
 
 - Inhalte: `index.json` und Themen-Dateien werden über die GitHub-API geladen und in IndexedDB zwischengespeichert (offline nutzbar).
 - Fortschritt: jede Bewertung ist ein Ereignis; jedes Gerät schreibt nur seine Datei `_fortschritt/<gerät>.json`. Der Lernstand (FSRS) wird aus den Ereignissen aller Geräte nachgerechnet, deshalb ist er überall gleich. Hochgeladen wird gebündelt (nach 1 Minute Pause, beim Wegwischen, am Sitzungsende, wenn das Netz zurückkommt).
+
+## Unterlagen hochladen
+
+Startseite → „Unterlagen hochladen“: Dateien (PDF, Word, PowerPoint, Excel, Fotos, ZIP, Text; je max. 25 MB), Fach oder „Bob entscheidet“, optional Wunsch. Die Datei landet in `_inbox/<Zeitstempel>_<Name>` mit `.meta.json`. Danach Bob im Chat: „Verarbeite die Inbox“. Das Token braucht dafür Schreibrecht (Contents: Read and write).
 
 ## Entwicklung
 

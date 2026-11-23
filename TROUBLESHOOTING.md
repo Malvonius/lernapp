@@ -37,3 +37,9 @@ Der Service Worker liefert die App aus dem Cache; nach einem Deploy einmal neu l
 
 ## App: „Lokaler Speicher nicht verfügbar“
 Privater Modus oder gesperrte Website-Daten. Normales Browserfenster bzw. installierte App verwenden.
+
+## Hochladen: „ohne Schreibrecht“
+Das Token hat nur Leserecht. Fine-grained Token mit „Contents: Read and write“ auf `lernstoff` erstellen und in den Einstellungen neu eintragen.
+
+## Hochladen: „Hinweis konnte nicht gespeichert werden – bitte nochmal“
+Die Datei ist in `_inbox/`, nur die `.meta.json` fehlt. Nicht nochmal hochladen; Bob verarbeitet die Datei auch ohne Hinweis (Fach dann „Bob entscheidet“).
