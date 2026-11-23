@@ -64,12 +64,25 @@ function errorFor(res: Response, put: boolean): GitHubError {
   return new GitHubError('other', s);
 }
 
-export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): GitHubClient {
+/** Höchstdauer je Anfrage inkl. Antwort-Inhalt: ein hängendes Netz darf den Abgleich nie dauerhaft blockieren. */
+export const TIMEOUT_MS = 20_000;
+
+/** Liest den Antwort-Inhalt; Abbruch (Timeout) oder Verbindungsfehler dabei → network. */
+async function lies<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch {
+    throw new GitHubError('network');
+  }
+}
+
+export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS): GitHubClient {
   async function request(url: string, init: RequestInit = {}, accept = 'application/vnd.github+json', extra: Record<string, string> = {}) {
     try {
       return await fetchImpl(url, {
         ...init,
         cache: 'no-store', // Contents-API sendet max-age=60: nach Konflikt sonst alter sha
+        signal: AbortSignal.timeout(timeoutMs),
         headers: { Authorization: `Bearer ${token}`, Accept: accept, ...extra },
       });
     } catch {
@@ -84,18 +97,18 @@ export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...
       const res = await request(contentsUrl(path) + ref, {}, 'application/vnd.github.raw+json', etag ? { 'If-None-Match': etag } : {});
       if (res.status === 304) return 'unchanged';
       if (!res.ok) throw errorFor(res, false);
-      return { text: await res.text(), etag: res.headers.get('etag') };
+      return { text: await lies(() => res.text()), etag: res.headers.get('etag') };
     },
     async getFile(path) {
       const res = await request(contentsUrl(path) + ref);
       if (res.status === 404) return null;
       if (!res.ok) throw errorFor(res, false);
-      const j = (await res.json()) as { sha: string; content?: string; encoding?: string; size?: number };
+      const j = (await lies(() => res.json())) as { sha: string; content?: string; encoding?: string; size?: number };
       if (j.encoding === 'base64' && typeof j.content === 'string') return { text: fromBase64(j.content), sha: j.sha };
       // > 1 MB: Contents-API liefert keinen Inhalt; nie still leer zurückgeben (Überschreib-Gefahr)
       const raw = await request(contentsUrl(path) + ref, {}, 'application/vnd.github.raw+json');
       if (!raw.ok) throw errorFor(raw, false);
-      return { text: await raw.text(), sha: j.sha };
+      return { text: await lies(() => raw.text()), sha: j.sha };
     },
     async putFile(path, text, sha, message) {
       const body: Record<string, string> = { message, content: toBase64(text), branch: REPO.branch };
@@ -104,14 +117,14 @@ export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...
         'Content-Type': 'application/json',
       });
       if (!res.ok) throw errorFor(res, true);
-      const j = (await res.json()) as { content: { sha: string } };
+      const j = (await lies(() => res.json())) as { content: { sha: string } };
       return { sha: j.content.sha };
     },
     async listDir(path) {
       const res = await request(contentsUrl(path) + ref);
       if (res.status === 404) return [];
       if (!res.ok) throw errorFor(res, false);
-      const j = (await res.json()) as { name: string; type: string }[];
+      const j = (await lies(() => res.json())) as { name: string; type: string }[];
       return j.filter((e) => e.type === 'file').map((e) => e.name);
     },
     async testAccess() {

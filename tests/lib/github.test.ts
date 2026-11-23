@@ -191,3 +191,28 @@ describe('testAccess', () => {
     for (const c of f.mock.calls) expect((c[1] as RequestInit).cache).toBe('no-store');
   });
 });
+
+describe('Timeout', () => {
+  /** fetch, das nie antwortet, aber wie der echte fetch auf das Abbruch-Signal reagiert. */
+  const haengt = (_u: string, init?: RequestInit) =>
+    new Promise<Response>((_, rej) => init?.signal?.addEventListener('abort', () => rej(init.signal!.reason)));
+
+  it('jede Anfrage bekommt ein Abbruch-Signal (Standard 20 s)', async () => {
+    const { gh, f } = client(async () => res(200, {}));
+    await gh.testAccess();
+    expect(call(f)[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+  it('hängende Anfrage → nach Ablauf network statt ewig warten', async () => {
+    const f = vi.fn(haengt);
+    const gh = createGitHubClient(TOKEN, f as unknown as typeof fetch, 20);
+    expect((await catchErr(gh.getRaw('a.md'))).kind).toBe('network');
+    expect((await catchErr(gh.listDir('d'))).kind).toBe('network');
+  });
+  it('Abbruch beim Lesen des Antwort-Inhalts → network', async () => {
+    const abbruch = () => Promise.reject(new DOMException('zu langsam', 'TimeoutError'));
+    const halb = { ok: true, status: 200, headers: new Headers(), text: abbruch, json: abbruch } as unknown as Response;
+    const { gh } = client(async () => halb);
+    expect((await catchErr(gh.getRaw('a.md'))).kind).toBe('network');
+    expect((await catchErr(gh.getFile('a.md'))).kind).toBe('network');
+  });
+});
