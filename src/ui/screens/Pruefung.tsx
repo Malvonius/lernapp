@@ -263,7 +263,7 @@ export function Pruefung() {
                 return (
                   <li key={a.id}>
                     <Markdown text={text} />
-                    <Link to={`/thema/${lauf.fachId}/${a.themaId}`}>Zum Thema</Link>
+                    <Link to={`/thema/${encodeURIComponent(lauf.fachId)}/${encodeURIComponent(a.themaId)}`}>Zum Thema</Link>
                   </li>
                 );
               })}

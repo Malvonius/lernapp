@@ -34,9 +34,16 @@ function seeded(seed: number): () => number {
   };
 }
 
-async function oeffneUndWaehle(limit?: string, seed = 7) {
+async function oeffneUndWaehle(limit?: string, seed = 7, themaId?: string) {
   window.location.hash = '#/pruefung';
-  const { client } = fakeClient(index);
+  const f = fakeClient(index);
+  // optional: Ableitungen bekommt eine ID mit Sonderzeichen (prüft das Codieren der Links)
+  const client = themaId
+    ? { ...f.client, getRaw: async (p: string, e?: string) => {
+        const r = await f.client.getRaw(p, e);
+        return p.endsWith('Ableitungen.md') && r !== 'unchanged' ? { ...r, text: r.text.replace('id: mathe-ableitungen', `id: "${themaId}"`) } : r;
+      } }
+    : f.client;
   render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} zufall={seeded(seed)} />);
   const start = await screen.findByRole('button', { name: 'Prüfung starten' });
   expect(start).toBeDisabled(); // ohne Fach und Kapitel
@@ -116,6 +123,16 @@ describe('Prüfung', () => {
     expect(screen.getAllByText('0 von 6').length).toBeGreaterThan(0);
     expect(screen.getByText(/Die Zeit ist abgelaufen/)).toBeInTheDocument();
     await waitFor(async () => expect((await getAllEvents(db)).find((e) => e.art === 'pruefung')).toMatchObject({ punkte: 0, max: 6 }));
+  });
+});
+
+describe('Prüfung: Links', () => {
+  it('„Zum Thema“ codiert die Themen-ID (encodeURIComponent)', async () => {
+    await oeffneUndWaehle(undefined, 7, 'abl?eitungen');
+    await arbeiteAb();
+    const falsch = (await screen.findByRole('heading', { name: 'Nochmal ansehen' })).nextElementSibling as HTMLElement;
+    const hrefs = within(falsch).getAllByRole('link', { name: 'Zum Thema' }).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('#/thema/mathe/abl%3Feitungen');
   });
 });
 
