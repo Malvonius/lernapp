@@ -118,6 +118,18 @@ async function ladeThemen(db: LernDatabase, index: LernIndex, alt: Map<string, T
 /** Leerlauf nach der letzten Bewertung, bevor hochgeladen wird: jeder Upload liest und schreibt die ganze Fortschrittsdatei. */
 export const UPLOAD_PAUSE_MS = 60_000;
 
+/** So oft wird `jetzt` bei sichtbarer App neu gelesen, damit fällige Karten auftauchen. */
+export const JETZT_TAKT_MS = 5 * 60_000;
+
+const WIEN_UHR = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+/** Millisekunden bis zur nächsten Mitternacht in Wien (an Zeitumstellungstagen höchstens eine Stunde daneben; der Takt fängt das auf). */
+function msBisWienerMitternacht(d: Date): number {
+  const [h = 0, m = 0, s = 0] = WIEN_UHR.format(d).split(':').map(Number);
+  const seit = ((h * 60 + m) * 60 + s) * 1000 + d.getMilliseconds();
+  return Math.min(Math.max(86_400_000 - seit, 1000), 2 ** 31 - 1);
+}
+
 const alsGitHubError = (e: unknown) => (e instanceof GitHubError ? e : new GitHubError('other'));
 const ladeEreignisse = async (db: LernDatabase) => (await getAllEvents(db)) as Ereignis[];
 
@@ -129,6 +141,8 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const [themen, setThemen] = useState<Map<string, Topic>>(new Map());
   const [ereignisse, setEreignisse] = useState<Ereignis[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ laeuft: false, offline: false, stand: null });
+  // Zähler, der `jetzt` neu rechnen lässt (Sichtbarkeit, Takt, Mitternacht)
+  const [uhrTick, setUhrTick] = useState(0);
 
   // Refs: sync()/record() lesen immer den aktuellen Stand, auch direkt nach speichereZugang().
   const dbRef = useRef<LernDatabase | null>(null);
@@ -265,6 +279,43 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     };
   }, [sync, hochladen]);
 
+  // `jetzt` aktuell halten: beim Sichtbarwerden, alle 5 Minuten (nur sichtbar) und um Mitternacht in Wien.
+  useEffect(() => {
+    const tick = () => setUhrTick((t) => t + 1);
+    let takt: ReturnType<typeof setInterval> | null = null;
+    let mitternacht: ReturnType<typeof setTimeout> | null = null;
+    const taktStoppen = () => {
+      if (takt !== null) clearInterval(takt);
+      takt = null;
+    };
+    const taktStarten = () => {
+      taktStoppen();
+      if (document.visibilityState !== 'hidden') takt = setInterval(tick, JETZT_TAKT_MS);
+    };
+    const mitternachtPlanen = () => {
+      if (mitternacht !== null) clearTimeout(mitternacht);
+      mitternacht = setTimeout(() => {
+        tick();
+        mitternachtPlanen();
+      }, msBisWienerMitternacht(nowRef.current()));
+    };
+    const beiSichtbarkeit = () => {
+      if (document.visibilityState === 'visible') {
+        tick();
+        mitternachtPlanen(); // Timer können im Hintergrund gedrosselt worden sein
+      }
+      taktStarten();
+    };
+    document.addEventListener('visibilitychange', beiSichtbarkeit);
+    taktStarten();
+    mitternachtPlanen();
+    return () => {
+      document.removeEventListener('visibilitychange', beiSichtbarkeit);
+      taktStoppen();
+      if (mitternacht !== null) clearTimeout(mitternacht);
+    };
+  }, []);
+
   useEffect(
     () => () => {
       if (uploadTimer.current !== null) clearTimeout(uploadTimer.current);
@@ -323,7 +374,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const kartenZustand = useMemo(() => replayCards(ereignisse), [ereignisse]);
   const uebungsStand = useMemo(() => uebungStand(ereignisse), [ereignisse]);
   // syncStatus: nach jedem Abgleich neu gegen die aktuelle Zeit rechnen
-  const jetzt = useMemo(() => nowRef.current(), [kartenZustand, themen, syncStatus]);
+  const jetzt = useMemo(() => nowRef.current(), [kartenZustand, themen, syncStatus, uhrTick]);
   const faellig = useMemo(() => dueCards(kartenZustand, [...themen.values()].flatMap(aktiveKartenIds), jetzt), [kartenZustand, themen, jetzt]);
   const topics = useCallback((pfad: string) => themen.get(pfad) ?? null, [themen]);
 
