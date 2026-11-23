@@ -1184,3 +1184,50 @@ input[type='radio'] { accent-color: var(--c-accent); }
 .field select:focus { border-color: var(--c-focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-focus) 30%, transparent); outline: none; }
 .field select option { background: var(--c-surface); color: var(--c-text); }
 :root[data-theme='light'] .field select { background-color: #fffdf8; }
+
+/* ───────────────────────── Hochladen ───────────────────────── */
+
+.start-zusatz { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-5); }
+.rueckfrage-hinweis {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--sp-4);
+  color: var(--c-text);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid color-mix(in oklab, var(--c-accent) 55%, var(--c-line));
+  border-radius: var(--r-field);
+  background: linear-gradient(90deg, color-mix(in oklab, var(--c-accent) 14%, var(--c-surface)), var(--c-surface));
+}
+.rueckfrage-hinweis:active { background: var(--c-raised); }
+
+.datei-liste {
+  list-style: none;
+  margin: 0 0 var(--sp-5);
+  padding: 0;
+  display: grid;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.datei {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  min-height: var(--touch);
+  padding: var(--sp-2) var(--sp-4);
+}
+.datei + .datei { border-top: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.datei__name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.datei__status { color: var(--c-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.datei[data-status='laedt'] .datei__status { color: var(--c-accent); }
+.datei[data-status='fertig'] .datei__status { color: var(--c-ok); }
+.datei[data-status='fehler'] .datei__status { color: var(--c-danger); }
+.datei__weg { min-height: var(--touch); padding-inline: var(--sp-3); font-size: var(--fs-sm); }
+.rueckfrage { margin-bottom: var(--sp-3); }
+.rueckfrage summary { overflow-wrap: anywhere; }
+.rueckfrage__text { padding-bottom: var(--sp-4); color: var(--c-text); font-size: 1rem; }
+input[type='file'].input { padding-block: var(--sp-2); }

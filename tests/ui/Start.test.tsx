@@ -289,3 +289,26 @@ describe('Hochladen entprellt', () => {
     sichtbar.mockRestore();
   });
 });
+
+describe('Einstieg „Hochladen“ und Rückfragen', () => {
+  it('Startseite verlinkt „Unterlagen hochladen“; ohne Rückfragen kein Hinweis', async () => {
+    await mitZugang();
+    render(<App db={db} createClient={() => fakeClient(index).client} />);
+    const link = await screen.findByRole('link', { name: 'Unterlagen hochladen' });
+    expect(link).toHaveAttribute('href', '#/hochladen');
+    expect(screen.queryByText(/Rückfrage/)).toBeNull();
+  });
+
+  it('index.rueckfragen > 0 → Hinweis „N Rückfragen von Bob“ mit Link zu #rueckfragen', async () => {
+    await mitZugang();
+    render(<App db={db} createClient={() => fakeClient({ ...index, rueckfragen: 2 }).client} />);
+    const hinweis = await screen.findByRole('link', { name: '2 Rückfragen von Bob' });
+    expect(hinweis).toHaveAttribute('href', '#/hochladen#rueckfragen');
+  });
+
+  it('genau eine Rückfrage: Einzahl', async () => {
+    await mitZugang();
+    render(<App db={db} createClient={() => fakeClient({ ...index, rueckfragen: 1 }).client} />);
+    expect(await screen.findByRole('link', { name: '1 Rückfrage von Bob' })).toBeInTheDocument();
+  });
+});

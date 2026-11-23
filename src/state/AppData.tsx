@@ -46,6 +46,8 @@ export interface AppData {
   /** Prüft ein (neues oder das gespeicherte) Token; wirft GitHubError. */
   pruefeVerbindung(token?: string): Promise<void>;
   speichereZugang(z: { token?: string; geraet: string }): Promise<void>;
+  /** GitHub-Client mit dem gespeicherten Token (Upload, Rückfragen); null ohne Token. */
+  neuerClient(): GitHubClient | null;
   setzeTheme(t: Theme): Promise<void>;
 }
 
@@ -297,6 +299,11 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     await createClientRef.current(t).testAccess();
   }, []);
 
+  const neuerClient = useCallback(() => {
+    const t = zugangRef.current.token;
+    return t ? createClientRef.current(t) : null;
+  }, []);
+
   const speichereZugang = useCallback(async ({ token, geraet }: { token?: string; geraet: string }) => {
     const db = dbRef.current;
     if (!db) throw new Error('Datenbank noch nicht bereit.');
@@ -340,9 +347,10 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       hochladen,
       pruefeVerbindung,
       speichereZugang,
+      neuerClient,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, uebungsStand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
+    [bereit, zugang, theme, index, topics, kartenZustand, uebungsStand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, neuerClient, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;

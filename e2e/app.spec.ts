@@ -163,3 +163,39 @@ test('Mindmap mit feindlichem Knotentext: kein HTML, kein javascript:-Link, Seit
 
   expect(fehler).toEqual([]);
 });
+
+test('Unterlagen hochladen: Datei und Hinweis landen in _inbox, Rückfrage von Bob ist lesbar', async ({ page, context }) => {
+  const gh = new FakeGitHub(await ladeFixture());
+  gh.rueckfragen.set('2026-11-23-skript.md', '# Rückfrage: Skript\n- **Unklar:** Welches Kapitel?\n\n<img src=x onerror="window.__xss = 1">');
+  await context.route('https://api.github.com/**', (route) => gh.handle(route));
+  const fehler = sammleFehler(page);
+
+  await einrichten(page);
+  await page.getByRole('link', { name: 'Unterlagen hochladen' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Hochladen' })).toBeVisible();
+
+  await page.getByLabel('Dateien').setInputFiles({ name: 'Übung 1.pdf', mimeType: 'application/pdf', buffer: Buffer.from([0, 255, 137, 80]) });
+  await page.getByLabel('Fach').selectOption('mathe');
+  await page.getByLabel('Wunsch (optional)').fill('mehr Übungen');
+  await keinHorizontalesScrollen(page);
+  await page.getByRole('button', { name: 'Hochladen' }).click();
+  await expect(page.getByText('fertig', { exact: true })).toBeVisible();
+
+  const pfade = [...gh.inbox.keys()];
+  const datei = pfade.find((p) => p.endsWith('_Übung 1.pdf'));
+  expect(datei).toMatch(/^_inbox\/\d{8}-\d{6}_Übung 1\.pdf$/);
+  expect([...gh.inbox.get(datei!)!]).toEqual([0, 255, 137, 80]);
+  const meta = JSON.parse(gh.inbox.get(`${datei}.meta.json`)!.toString('utf8'));
+  expect(meta).toMatchObject({ fach: 'mathe', wunsch: 'mehr Übungen', geraet: 'handy' });
+  await expect(page.getByRole('heading', { name: 'Wartet auf Bob' })).toBeVisible();
+  await expect(page.getByText(/Verarbeite die Inbox/)).toBeVisible();
+
+  // Rückfrage aufklappen: Markdown, kein rohes HTML
+  await page.getByText('2026-11-23-skript.md').click();
+  await expect(page.getByRole('heading', { name: 'Rückfrage: Skript' })).toBeVisible();
+  expect(await page.locator('.rueckfrage img').count()).toBe(0);
+  expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss)).toBeUndefined();
+  await keinHorizontalesScrollen(page);
+
+  expect(fehler).toEqual([]);
+});

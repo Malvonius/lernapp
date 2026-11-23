@@ -39,6 +39,10 @@ export class FakeGitHub {
   /** Anfragen, die im Offline-Modus abgewiesen wurden (Pfad nach /contents/ bzw. „repo“) */
   abgewiesen: string[] = [];
   puts: PutAufruf[] = [];
+  /** Uploads nach _inbox/ (Dateien und .meta.json), Inhalt Base64-dekodiert */
+  inbox = new Map<string, Buffer>();
+  /** Offene Rückfragen: Dateiname → Markdown */
+  rueckfragen = new Map<string, string>();
   private fortschritt = new Map<string, { text: string; sha: string }>();
   private shaZaehler = 0;
 
@@ -66,9 +70,24 @@ export class FakeGitHub {
     if (!url.pathname.startsWith(praefix)) return this.json(route, 404, { message: 'Not Found' });
     const pfad = url.pathname.slice(praefix.length).split('/').map(decodeURIComponent).join('/');
 
+    if (req.method() === 'PUT' && pfad.startsWith('_inbox/')) {
+      const { content } = req.postDataJSON() as { content: string };
+      if (this.inbox.has(pfad)) return this.json(route, 422, { message: 'name exists' });
+      this.inbox.set(pfad, Buffer.from(content, 'base64'));
+      return this.json(route, 201, { content: { sha: `sha-${++this.shaZaehler}` } });
+    }
     if (req.method() === 'PUT') return this.put(route, pfad, req.postDataJSON() as { content: string; sha?: string });
 
     const raw = (req.headers()['accept'] ?? '').includes('raw');
+    if (pfad === '_inbox' || pfad === '_rueckfrage') {
+      const namen =
+        pfad === '_inbox' ? [...this.inbox.keys()].map((k) => k.slice('_inbox/'.length)) : [...this.rueckfragen.keys()];
+      if (namen.length === 0) return this.json(route, 404, { message: 'Not Found' });
+      return this.json(route, 200, namen.map((name) => ({ name, type: 'file' })));
+    }
+    if (pfad.startsWith('_rueckfrage/') && this.rueckfragen.has(pfad.slice('_rueckfrage/'.length))) {
+      return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/plain; charset=utf-8' }, body: this.rueckfragen.get(pfad.slice('_rueckfrage/'.length))! });
+    }
     if (pfad === '_fortschritt') {
       const namen = [...this.fortschritt.keys()].map((p) => p.slice('_fortschritt/'.length));
       if (namen.length === 0) return this.json(route, 404, { message: 'Not Found' });

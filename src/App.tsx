@@ -3,6 +3,7 @@ import { HashRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/AppData';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { Fach } from './ui/screens/Fach';
+import { Hochladen } from './ui/screens/Hochladen';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
 import { Pruefung } from './ui/screens/Pruefung';
@@ -29,6 +30,7 @@ function Routen() {
       {/* key: andere Query (Fach/Thema) = neue Sitzung */}
       <Route path="/wiederholen" element={<Wiederholen key={search} />} />
       <Route path="/pruefung" element={<Pruefung />} />
+      <Route path="/hochladen" element={<Hochladen />} />
       <Route path="/suche" element={<Suche />} />
       <Route path="/einstellungen" element={<Einstellungen />} />
       <Route path="*" element={<Platzhalter titel="Seite nicht gefunden" />} />

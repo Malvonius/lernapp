@@ -50,6 +50,7 @@ function FachKachel({ fach, faelligSet, nr }: { fach: IndexSubject; faelligSet: 
 
 export function Start() {
   const { index, faellig, kartenZustand, syncStatus } = useAppData();
+  const rueckfragen = index?.rueckfragen ?? 0;
   const faelligSet = new Set(faellig);
   // faellig enthält auch neue Karten (ohne Ereignis); die zählen getrennt, höchstens 20 pro Sitzung
   const neu = faellig.filter((id) => !kartenZustand.has(id)).length;
@@ -74,6 +75,16 @@ export function Start() {
             <Link to="/pruefung" className="button button--quiet start-pruefung">
               Prüfung starten
             </Link>
+          </div>
+          <div className="start-zusatz">
+            <Link to="/hochladen" className="button button--quiet">
+              Unterlagen hochladen
+            </Link>
+            {rueckfragen > 0 && (
+              <Link to="/hochladen#rueckfragen" className="rueckfrage-hinweis">
+                {rueckfragen} {rueckfragen === 1 ? 'Rückfrage' : 'Rückfragen'} von Bob
+              </Link>
+            )}
           </div>
           <h2 className="abschnitt-titel">Fächer</h2>
           <ul className="kacheln">
