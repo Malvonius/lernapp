@@ -150,7 +150,7 @@ export function Pruefung() {
   if (!lauf) {
     const kannStarten = fach !== null && gewaehlt.length > 0;
     return (
-      <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
+      <section className={fach ? 'screen screen--fach' : 'screen'} style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
         <h1>Prüfung</h1>
         <p className="lead">Eine Probeprüfung aus Karten und Übungen deiner Kapitel.</p>
 
@@ -231,7 +231,7 @@ export function Pruefung() {
     const falsch = lauf.aufgaben.filter((a) => ergebnisse.current.get(a.id) !== true);
     const abgelaufen = lauf.ende !== null && rest === 0 && ergebnisse.current.size < lauf.aufgaben.length;
     return (
-      <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
+      <section className={fach ? 'screen screen--fach' : 'screen'} style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
         <h1>Auswertung</h1>
         {abgelaufen && <p className="banner">Die Zeit ist abgelaufen. Offene Aufgaben zählen als falsch.</p>}
         <p className="pruefung__summe">
@@ -299,7 +299,7 @@ export function Pruefung() {
   const letzte = pos + 1 >= lauf.aufgaben.length;
 
   return (
-    <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
+    <section className={fach ? 'screen screen--fach' : 'screen'} style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
       <h1 className="visually-hidden">Prüfung</h1>
       <p className="lernfortschritt" aria-live="polite">
         Aufgabe {pos + 1} von {lauf.aufgaben.length}

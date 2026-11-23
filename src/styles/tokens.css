@@ -1,48 +1,65 @@
 /*
- * Design-Tokens der Lernapp.
- * Richtung: dunkel und ruhig, ein Hauch Goth. Tiefes Anthrazit, Weinrot als Grundakzent;
- * jedes Fach setzt seinen eigenen Akzent über --fach (aus `farbe` in der Fach-Datei).
- * Dunkel ist Standard, hell über [data-theme="light"] auf <html>.
+ * Design-Tokens der Lernapp – Richtung „Glut“: Dark Fantasy in der Stimmung, Apple im Handwerk.
+ * Obsidian (fast schwarz, leicht violett-warm) mit Vignette und Korn; Leitakzent Glut (Bernstein → Orange);
+ * dünne Gold-Haarlinien als Trenner. Fachfarben (--fach, aus `farbe` der Fach-Datei) wirken wie Licht
+ * durch Glas: Glow und Verlauf auf dunklem Grund statt voller Fläche, damit Text immer AA bleibt.
+ * Dunkel ist Standard, hell („Pergament“) über [data-theme="light"] auf <html>.
  */
 :root {
   color-scheme: dark;
 
-  /* Farben, dunkel */
-  --c-bg: #19181d;          /* Nacht: Seitenhintergrund, auch theme_color */
-  --c-surface: #222128;     /* Schiefer: Flächen, Eingabefelder */
-  --c-raised: #2d2b34;      /* Grat: gedrückte/hervorgehobene Flächen */
-  --c-line: #3b3843;        /* Linien, Ränder */
-  --c-text: #ebe6ee;        /* Bein: Fließtext */
-  --c-muted: #a7a1ae;       /* Asche: Nebentext */
-  --c-accent: #c8607c;      /* Weinrot: Grundakzent ohne Fach */
-  --c-on-accent: #19181d;   /* Text auf Akzentflächen */
-  --c-danger: #e07a6a;
-  --c-ok: #7fb59a;
-  --c-focus: #e9b3c2;
+  /* Grund */
+  --c-bg: #110e10;          /* Obsidian: Seitenhintergrund, auch theme_color */
+  --c-bg-tief: #070506;     /* Rand der Vignette, Eingabefelder */
+  --c-surface: #1a1618;     /* Glasfläche */
+  --c-raised: #262022;      /* gedrückt / hervorgehoben */
+  --c-line: #3a3134;        /* Struktur-Linien */
+  --c-gold: #c9a56c;        /* Haarlinien, Ornamente */
+  --c-hairline: rgb(201 165 108 / 0.28);
+  --c-text: #f2e9dd;        /* Bein */
+  --c-muted: #b3a597;       /* Asche, 7:1 auf Obsidian */
+  --c-glass: rgb(17 14 16 / 0.72);
+  --korn-deckkraft: 0.06;
 
-  /* Ampel-Status (Fachansicht, Start-Kacheln) */
-  --c-st-gruen: #6fbf8f;
-  --c-st-gelb: #dcb24a;
-  --c-st-rot: #e8685a;
-  --c-st-neu: #8aa4d6;
-  --c-st-luecke: #6f6a78;
-  --c-st-fehlerhaft: #d98ac4;
+  /* Glut */
+  --c-accent: #f2a03d;      /* Bernstein: Grundakzent ohne Fach, Links */
+  --c-glut-hell: #ffd18a;
+  --c-glut-tief: #d65f26;
+  --c-on-accent: #1b0e05;   /* Text auf Glut-Flächen (≥ 8:1) */
+  --c-link: #ffbf6e;
+  --c-danger: #f0806a;
+  --c-ok: #b5d39a;
+  --c-focus: #ffcf8a;
 
-  /* Fach-Akzent: Screens setzen --fach inline, sonst gilt der Grundakzent */
+  /* Ampel als Glut-Stufen: Kern / Hülle / Schein */
+  --c-st-gruen: #ffc867;    /* hell glühend */
+  --c-st-gruen-kern: #fff4d6;
+  --c-st-gruen-schein: rgb(255 184 80 / 0.7);
+  --c-st-gelb: #dc6d2c;     /* glimmend */
+  --c-st-gelb-kern: #ffb06a;
+  --c-st-gelb-schein: rgb(230 110 40 / 0.45);
+  --c-st-rot: #6a5753;      /* fast erloschen, aschig */
+  --c-st-rot-kern: #d0573c; /* letzter Funke */
+  --c-st-neu: #8a96a6;      /* kalt */
+  --c-st-luecke: #7b7074;
+  --c-st-fehlerhaft: #ee6f88; /* Riss / Warnung */
+
+  /* Fach-Akzent: Screens setzen --fach inline, sonst gilt Glut */
   --fach: var(--c-accent);
 
   /* Schrift */
-  --font-display: 'Grenze Gotisch', 'Iowan Old Style', Georgia, serif;
-  --font-body: 'Atkinson Hyperlegible Next Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* Skala 1.25 (große Terz), Basis 17px für gute Lesbarkeit am Handy */
+  --font-logo: 'Grenze Gotisch', 'Iowan Old Style', Georgia, serif;
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-xs: 0.8125rem;
   --fs-sm: 0.875rem;
-  --fs-base: 1.0625rem;
+  --fs-base: 1.0625rem;     /* 17 px: gut lesbar am Handy */
   --fs-md: 1.25rem;
-  --fs-lg: 1.5625rem;
-  --fs-xl: 1.953rem;
-  --fs-2xl: 2.441rem;
-  --lh-body: 1.55;
-  --lh-tight: 1.15;
+  --fs-lg: 1.5rem;
+  --fs-xl: 1.875rem;
+  --fs-2xl: clamp(2.375rem, 1.7rem + 3.2vw, 3.25rem);
+  --lh-body: 1.6;
+  --lh-tight: 1.08;
 
   /* Abstände (4er-Raster) */
   --sp-1: 0.25rem;
@@ -53,33 +70,60 @@
   --sp-6: 2rem;
   --sp-7: 3rem;
 
-  /* Form */
-  --r-field: 6px;
-  --r-panel: 12px;
+  /* Form: Radius nach Hierarchie, nicht überall gleich */
+  --r-field: 10px;
+  --r-panel: 16px;
+  --r-sheet: 22px;
   --touch: 44px;            /* Mindestgröße für Bedienelemente */
   --gutter: 16px;
   --measure: 40rem;         /* maximale Inhaltsbreite */
-  --dur: 160ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --bar-h: 52px;
+
+  /* Bewegung */
+  --dur-press: 110ms;
+  --dur: 180ms;
+  --dur-ein: 260ms;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);        /* ease-out für UI */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --schatten-flaeche: 0 1px 0 rgb(255 236 210 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.9);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --c-bg: #f1f0f3;
-  --c-surface: #ffffff;
-  --c-raised: #e6e4ea;
-  --c-line: #cfcbd5;
-  --c-text: #1d1b22;
-  --c-muted: #5e5966;
-  --c-accent: #8e2f4b;
-  --c-on-accent: #ffffff;
-  --c-danger: #b23a2a;
-  --c-ok: #2f7255;
-  --c-focus: #8e2f4b;
-  --c-st-gruen: #2f7a4f;
-  --c-st-gelb: #8f6a00;
-  --c-st-rot: #b5301f;
-  --c-st-neu: #3f5f9f;
-  --c-st-luecke: #7d7886;
-  --c-st-fehlerhaft: #9a3b85;
+  --c-bg: #f1e9dc;          /* Pergament */
+  --c-bg-tief: #e2d6c3;
+  --c-surface: #fbf6ee;
+  --c-raised: #ece2d2;
+  --c-line: #d6c8b3;
+  --c-gold: #9a7440;
+  --c-hairline: rgb(154 116 64 / 0.35);
+  --c-text: #2a1f18;
+  --c-muted: #685748;
+  --c-glass: rgb(241 233 220 / 0.78);
+  --korn-deckkraft: 0.08;
+
+  --c-accent: #a5460f;
+  --c-glut-hell: #f29a4a;
+  --c-glut-tief: #c8571a;
+  --c-on-accent: #1b0e05;
+  --c-link: #9a3f0c;
+  --c-danger: #b02e1c;
+  --c-ok: #3c6b2a;
+  --c-focus: #a5460f;
+
+  --c-st-gruen: #b77700;
+  --c-st-gruen-kern: #ffd57a;
+  --c-st-gruen-schein: rgb(214 140 0 / 0.5);
+  --c-st-gelb: #c4581c;
+  --c-st-gelb-kern: #f29a4a;
+  --c-st-gelb-schein: rgb(196 88 28 / 0.3);
+  --c-st-rot: #7d6a62;
+  --c-st-rot-kern: #b2402a;
+  --c-st-neu: #66717f;
+  --c-st-luecke: #8c7f74;
+  --c-st-fehlerhaft: #b02a4a;
+
+  --schatten-flaeche: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 28px -18px rgb(70 45 20 / 0.45);
 }

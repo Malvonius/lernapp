@@ -150,12 +150,16 @@ export function Wiederholen({ kartenAktion }: WiederholenProps = {}) {
   };
 
   return (
-    <section className="screen" style={{ '--fach': aktuell.farbe } as CSSProperties}>
+    <section className="screen screen--fach" style={{ '--fach': aktuell.farbe } as CSSProperties}>
       <h1 className="visually-hidden">Wiederholen</h1>
       <p className="lernfortschritt" aria-live="polite">
         Noch {queue.length} von {gesamt}
       </p>
+      <div className="fortschritt-balken" aria-hidden="true">
+        <span style={{ transform: `scaleX(${gesamt ? (gesamt - queue.length) / gesamt : 0})` }} />
+      </div>
       <Lernkarte
+        key={aktuell.id}
         frage={aktuell.frage}
         antwort={aktuell.antwort}
         aufgedeckt={aufgedeckt}

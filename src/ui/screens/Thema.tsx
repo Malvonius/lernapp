@@ -126,7 +126,7 @@ export function Thema({ kopfAktion }: { kopfAktion?: ReactNode } = {}) {
   const topic = eintrag?.pfad ? topics(eintrag.pfad) : null;
 
   return (
-    <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
+    <section className={fach ? 'screen screen--fach' : 'screen'} style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
       {topic && fachId && themaId ? (
         <ThemaInhalt key={themaId} fachId={fachId} fachName={fach?.name ?? fachId} themaId={themaId} topic={topic} kopfAktion={kopfAktion} />
       ) : eintrag ? (

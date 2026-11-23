@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import type { Bewertung } from '../../lib/progress';
+import { bewegungErlaubt, EASE_OUT } from '../bewegung';
 import { Markdown } from './Markdown';
 
 export const BEWERTUNGEN: { wert: Bewertung; label: string }[] = [
@@ -9,8 +11,11 @@ export const BEWERTUNGEN: { wert: Bewertung; label: string }[] = [
   { wert: 4, label: 'Einfach' },
 ];
 
+// Tasten in Eingabefeldern und im „Frag Bob“-Sheet gehören nicht der Karte
 const istEingabe = (t: EventTarget | null) =>
-  t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
+  t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.closest('dialog') !== null);
+
+const DREH = (grad: number) => `perspective(1400px) rotateY(${grad}deg)`;
 
 export interface LernkarteProps {
   frage: string;
@@ -24,10 +29,38 @@ export interface LernkarteProps {
   aktion?: ReactNode;
 }
 
-/** Eine Lernkarte: Frage, „Antwort zeigen“, dann vier Bewertungsknöpfe. Tastatur: Leertaste/Enter deckt auf, 1–4 bewertet. */
+/**
+ * Eine Lernkarte: Frage, „Antwort zeigen“, dann vier Bewertungsknöpfe. Tastatur: Leertaste/Enter deckt auf, 1–4 bewertet.
+ * Aufdecken dreht die Karte in 3D: die Vorderseite dreht sich weg (bis 90°, Kante zum Betrachter), in diesem
+ * Moment wird die Rückseite gezeigt und dreht sich herein. Ohne Bewegung (reduced motion, Tests) sofort.
+ */
 export function Lernkarte({ frage, antwort, aufgedeckt, intervalle, onAufdecken, onBewerten, aktion }: LernkarteProps) {
-  const aktuell = useRef({ aufgedeckt, onAufdecken, onBewerten });
-  aktuell.current = { aufgedeckt, onAufdecken, onBewerten };
+  const karte = useRef<HTMLElement>(null);
+  const dreht = useRef(false);
+  const aktuell = useRef({ aufgedeckt, onAufdecken, onBewerten, aufdecken: () => {} });
+  const aufdecken = () => {
+    const el = karte.current;
+    if (aktuell.current.aufgedeckt || dreht.current) return;
+    if (!el || !bewegungErlaubt(el)) {
+      aktuell.current.onAufdecken();
+      return;
+    }
+    dreht.current = true;
+    const weg = el.animate([{ transform: DREH(0) }, { transform: DREH(90) }], { duration: 150, easing: 'cubic-bezier(0.5, 0, 0.75, 0)' });
+    weg.onfinish = () => {
+      if (!karte.current) return;
+      // Rückseite im selben Frame rendern, damit zwischen den Hälften nichts aufblitzt
+      flushSync(() => aktuell.current.onAufdecken());
+      const her = el.animate([{ transform: DREH(-90) }, { transform: DREH(0) }], { duration: 210, easing: EASE_OUT });
+      her.onfinish = her.oncancel = () => {
+        dreht.current = false;
+      };
+    };
+    weg.oncancel = () => {
+      dreht.current = false;
+    };
+  };
+  aktuell.current = { aufgedeckt, onAufdecken, onBewerten, aufdecken };
 
   useEffect(() => {
     const beiTaste = (e: KeyboardEvent) => {
@@ -36,7 +69,7 @@ export function Lernkarte({ frage, antwort, aufgedeckt, intervalle, onAufdecken,
       if (!h.aufgedeckt) {
         if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
-          h.onAufdecken();
+          h.aufdecken();
         }
       } else if (e.key >= '1' && e.key <= '4') {
         h.onBewerten(Number(e.key) as Bewertung);
@@ -47,7 +80,7 @@ export function Lernkarte({ frage, antwort, aufgedeckt, intervalle, onAufdecken,
   }, []);
 
   return (
-    <article className="lernkarte">
+    <article ref={karte} className="lernkarte">
       <div className="lernkarte__frage">
         <Markdown text={frage} />
       </div>
@@ -67,7 +100,7 @@ export function Lernkarte({ frage, antwort, aufgedeckt, intervalle, onAufdecken,
           ))}
         </div>
       ) : (
-        <button type="button" className="button lernkarte__aufdecken" onClick={onAufdecken}>
+        <button type="button" className="button lernkarte__aufdecken" onClick={aufdecken}>
           Antwort zeigen
         </button>
       )}

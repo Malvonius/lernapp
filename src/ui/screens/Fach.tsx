@@ -59,10 +59,10 @@ function FachInhalt({ fach }: { fach: IndexSubject }) {
     });
   };
 
-  const abschnitt = (key: string, titel: string, themen: IndexTopic[], mitAmpel: boolean) => {
+  const abschnitt = (key: string, nr: number, titel: string, themen: IndexTopic[], mitAmpel: boolean) => {
     const stati = themen.map(status);
     return (
-      <section key={key} className="kapitel" aria-labelledby={`kap-${key}`}>
+      <section key={key} className="kapitel gestaffelt" style={{ '--i': nr } as CSSProperties} aria-labelledby={`kap-${key}`}>
         <h2 id={`kap-${key}`} className="kapitel__titel">
           <span>{titel}</span>
           {mitAmpel && <Ampel status={kapitelStatus(stati)} />}
@@ -80,8 +80,8 @@ function FachInhalt({ fach }: { fach: IndexSubject }) {
     <>
       <h1 className="fach-titel">{fach.name}</h1>
       {fach.struktur === 'vorlaeufig' && <p className="hinweis">vorläufige Gliederung</p>}
-      {fach.kapitel.map((k, i) => abschnitt(`k${i}`, k.titel, k.themen, true))}
-      {fach.nichtZugeordnet.length > 0 && abschnitt('nz', 'Nicht zugeordnet', fach.nichtZugeordnet, false)}
+      {fach.kapitel.map((k, i) => abschnitt(`k${i}`, i, k.titel, k.themen, true))}
+      {fach.nichtZugeordnet.length > 0 && abschnitt('nz', fach.kapitel.length, 'Nicht zugeordnet', fach.nichtZugeordnet, false)}
     </>
   );
 }
@@ -92,7 +92,7 @@ export function Fach() {
   const fach = index?.faecher.find((f) => f.id === fachId);
 
   return (
-    <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
+    <section className={fach ? 'screen screen--fach' : 'screen'} style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
       <SyncBanner />
       {fach ? (
         <FachInhalt fach={fach} />

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { HashRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/AppData';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
@@ -35,6 +36,84 @@ function Routen() {
   );
 }
 
+/** Farbe der Statusleiste je Theme (gleich --c-bg) */
+const THEME_FARBE = { dunkel: '#110e10', hell: '#f1e9dc' } as const;
+
+/**
+ * Großer Titel → kleine Kopfleiste (Apple): Sobald die sichtbare h1 des Screens unter der Leiste
+ * verschwindet, zeigt die Leiste ihren Text. Der Text steht nur in einem CSS-Attribut (::after),
+ * damit er für Screenreader und Tests nicht doppelt vorkommt.
+ */
+function useKompaktTitel(): string | null {
+  const { pathname, search } = useLocation();
+  const [titel, setTitel] = useState<string | null>(null);
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main || typeof IntersectionObserver !== 'function') return;
+    let h1: Element | null = null;
+    let io: IntersectionObserver | null = null;
+    const binden = () => {
+      const neu = main.querySelector('h1:not(.visually-hidden)');
+      if (neu === h1) return;
+      io?.disconnect();
+      h1 = neu;
+      setTitel(null);
+      if (!neu) return;
+      io = new IntersectionObserver(
+        ([e]) => setTitel(e && !e.isIntersecting && e.boundingClientRect.top < 0 ? (neu.textContent ?? '').trim() || null : null),
+        { rootMargin: '-56px 0px 0px 0px' },
+      );
+      io.observe(neu);
+    };
+    binden();
+    const mo = new MutationObserver(binden);
+    mo.observe(main, { childList: true, subtree: true });
+    return () => {
+      mo.disconnect();
+      io?.disconnect();
+    };
+  }, [pathname, search]);
+  return titel;
+}
+
+function KopfLeiste() {
+  const { theme } = useAppData();
+  const titel = useKompaktTitel();
+  const [gescrollt, setGescrollt] = useState(false);
+
+  useEffect(() => {
+    const pruefen = () => setGescrollt(window.scrollY > 4);
+    pruefen();
+    window.addEventListener('scroll', pruefen, { passive: true });
+    return () => window.removeEventListener('scroll', pruefen);
+  }, []);
+
+  useEffect(() => {
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_FARBE[theme]);
+  }, [theme]);
+
+  return (
+    <header className="app-bar" data-gescrollt={gescrollt || titel !== null}>
+      <Link to="/" className="wordmark">Lernapp</Link>
+      <span className="app-bar__titel" aria-hidden="true" data-titel={titel ?? ''} data-sichtbar={titel !== null} />
+      <div className="app-bar__aktionen">
+        <Link to="/suche" className="app-bar__link" aria-label="Zur Suche" title="Suche">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+            <circle cx="10.5" cy="10.5" r="6.2" />
+            <path d="M15.2 15.2L20.5 20.5" />
+          </svg>
+        </Link>
+        <Link to="/einstellungen" className="app-bar__link" aria-label="Zu den Einstellungen" title="Einstellungen">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
+          </svg>
+        </Link>
+      </div>
+    </header>
+  );
+}
+
 /** App-Gerüst: Zustand (AppDataProvider) und alle Routen. Props nur für Tests. */
 export function App(props: Omit<AppDataProviderProps, 'children'>) {
   return (
@@ -42,23 +121,7 @@ export function App(props: Omit<AppDataProviderProps, 'children'>) {
       <AppDataProvider {...props}>
         <HashRouter>
           <div className="app">
-            <header className="app-bar">
-              <Link to="/" className="wordmark">Lernapp</Link>
-              <div className="app-bar__aktionen">
-                <Link to="/suche" className="app-bar__link" aria-label="Zur Suche" title="Suche">
-                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <circle cx="10.5" cy="10.5" r="6.2" />
-                    <path d="M15.2 15.2L20.5 20.5" />
-                  </svg>
-                </Link>
-                <Link to="/einstellungen" className="app-bar__link" aria-label="Zu den Einstellungen" title="Einstellungen">
-                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <circle cx="12" cy="12" r="3.2" />
-                    <path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" />
-                  </svg>
-                </Link>
-              </div>
-            </header>
+            <KopfLeiste />
             <main>
               <Routen />
             </main>
