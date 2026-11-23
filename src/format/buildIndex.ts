@@ -2,10 +2,11 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitBlobSha } from './gitHash';
-import { ensureIds, findDuplicateIds } from './ids';
+import { ensureIds, findDuplicateIds, probeInhalt } from './ids';
+import { parseProbe } from './parseProbe';
 import { parseSubject } from './parseSubject';
 import { parseTopic } from './parseTopic';
-import type { IndexChapter, IndexSubject, IndexTopic, LernIndex, Topic } from './types';
+import type { IndexChapter, IndexProbe, IndexSubject, IndexTopic, LernIndex, Probe, Topic } from './types';
 
 interface TopicFile {
   pfad: string; // relativ, mit '/'
@@ -14,6 +15,15 @@ interface TopicFile {
   bytes: Buffer;
   topic: Topic;
 }
+
+interface ProbeFile {
+  pfad: string;
+  bytes: Buffer;
+  probe: Probe;
+}
+
+/** Unterordner eines Fachs mit den Probe-Schularbeiten */
+export const PROBEN_ORDNER = '_proben';
 
 const isHidden = (name: string) => name.startsWith('_') || name.startsWith('.');
 
@@ -31,13 +41,19 @@ export async function buildIndex(
     .sort((a, b) => a.localeCompare(b, 'de'));
 
   const filesBySubject = new Map<string, TopicFile[]>();
-  for (const s of subjectDirs) filesBySubject.set(s, await readTopicFiles(root, s));
+  const probenBySubject = new Map<string, ProbeFile[]>();
+  for (const s of subjectDirs) {
+    filesBySubject.set(s, await readTopicFiles(root, s));
+    probenBySubject.set(s, await readProbeFiles(root, s));
+  }
   const all = [...filesBySubject.values()].flat();
+  const allProben = [...probenBySubject.values()].flat();
 
   const changedFiles: string[] = [];
   if (opts.fix) {
     const taken = new Set<string>();
     for (const f of all) for (const it of [...f.topic.karten, ...f.topic.uebungen]) if (it.id) taken.add(it.id);
+    for (const f of allProben) for (const it of f.probe.aufgaben) if (it.id) taken.add(it.id);
     for (const f of all) {
       const before = f.bytes.toString('utf8');
       const { text, added } = ensureIds(before, taken);
@@ -47,10 +63,22 @@ export async function buildIndex(
       await writeFile(join(root, ...f.pfad.split('/')), f.bytes);
       changedFiles.push(f.pfad);
     }
+    for (const f of allProben) {
+      const { text, added } = ensureIds(f.bytes.toString('utf8'), taken, 'probe');
+      if (added.length === 0) continue;
+      f.bytes = Buffer.from(text, 'utf8');
+      f.probe = parseProbe(text);
+      await writeFile(join(root, ...f.pfad.split('/')), f.bytes);
+      changedFiles.push(f.pfad);
+    }
   }
 
   const dupErrors = new Map<string, string[]>(); // pfad → Fehler
-  for (const [id, places] of findDuplicateIds(all.map((f) => ({ pfad: f.pfad, topic: f.topic })))) {
+  const idQuellen = [
+    ...all.map((f) => ({ pfad: f.pfad, topic: f.topic })),
+    ...allProben.map((f) => ({ pfad: f.pfad, topic: probeInhalt(f.probe) })),
+  ];
+  for (const [id, places] of findDuplicateIds(idQuellen)) {
     for (const p of new Set(places.map((pl) => pl.replace(/:\d+$/, '')))) {
       const list = dupErrors.get(p) ?? [];
       list.push(`ID ${id} doppelt (${places.join(', ')})`);
@@ -68,6 +96,20 @@ export async function buildIndex(
     hatMindmap: f.topic.mindmap !== null,
     fehler: [...f.topic.fehler, ...(dupErrors.get(f.pfad) ?? [])],
   });
+
+  const toIndexProbe = (f: ProbeFile): IndexProbe => {
+    const aktiv = f.probe.aufgaben.filter((a) => !a.zurueckgezogen);
+    return {
+      id: f.probe.id || null,
+      titel: f.probe.titel || f.pfad.slice(f.pfad.lastIndexOf('/') + 1, -3),
+      pfad: f.pfad,
+      hash: gitBlobSha(f.bytes),
+      aufgaben: aktiv.length,
+      punkte: aktiv.reduce((n, a) => n + (a.punkte ?? 0), 0),
+      dauerMin: f.probe.dauerMin,
+      fehler: [...f.probe.fehler, ...(dupErrors.get(f.pfad) ?? [])],
+    };
+  };
 
   const faecher: IndexSubject[] = [];
   for (const dir of subjectDirs) {
@@ -98,6 +140,7 @@ export async function buildIndex(
       hash: gitBlobSha(bytes),
       kapitel,
       nichtZugeordnet: files.filter((f) => !used.has(f.pfad)).map((f) => toIndexTopic(f)),
+      proben: (probenBySubject.get(dir) ?? []).map(toIndexProbe).sort((a, b) => a.titel.localeCompare(b.titel, 'de')),
       fehler: subject.fehler,
     });
   }
@@ -106,7 +149,7 @@ export async function buildIndex(
   const fehlerAnzahl = faecher.reduce(
     (n, s) =>
       n + s.fehler.length +
-      [...s.kapitel.flatMap((k) => k.themen), ...s.nichtZugeordnet].reduce((m, t) => m + t.fehler.length, 0),
+      [...s.kapitel.flatMap((k) => k.themen), ...s.nichtZugeordnet, ...s.proben].reduce((m, t) => m + t.fehler.length, 0),
     0,
   );
 
@@ -137,6 +180,21 @@ async function readTopicFiles(root: string, subjectDir: string): Promise<TopicFi
         topic: parseTopic(bytes.toString('utf8')),
       });
     }
+  }
+  return out;
+}
+
+async function readProbeFiles(root: string, subjectDir: string): Promise<ProbeFile[]> {
+  const dir = join(root, subjectDir, PROBEN_ORDNER);
+  if (!existsSync(dir)) return [];
+  const names = (await readdir(dir, { withFileTypes: true }))
+    .filter((d) => d.isFile() && d.name.endsWith('.md'))
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b, 'de'));
+  const out: ProbeFile[] = [];
+  for (const name of names) {
+    const bytes = await readFile(join(dir, name));
+    out.push({ pfad: `${subjectDir}/${PROBEN_ORDNER}/${name}`, bytes, probe: parseProbe(bytes.toString('utf8')) });
   }
   return out;
 }

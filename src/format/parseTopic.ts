@@ -14,27 +14,9 @@ const REQUIRED_FIELDS = ['id', 'fach', 'kapitel', 'titel', 'quellen', 'stand'] a
 /** Liest eine Themen-Datei. Wirft nie; Probleme landen in `fehler`. */
 export function parseTopic(text: string): Topic {
   const fehler: string[] = [];
-  const src = normalize(text);
-
-  let data: Record<string, unknown> = {};
-  let body = src;
-  let bodyStartLine = 1;
-  try {
-    ({ data, body, bodyStartLine } = splitFrontmatter(src));
-  } catch (e) {
-    fehler.push(`Frontmatter ungültig: ${(e as Error).message.split('\n')[0]}`);
-    const m = /^---\n[\s\S]*?\n---(?:\n|$)/.exec(src);
-    if (m) {
-      body = src.slice(m[0].length);
-      bodyStartLine = m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) + 1;
-    }
-  }
-
-  for (const f of REQUIRED_FIELDS) {
-    if (data[f] === undefined || data[f] === null || data[f] === '') fehler.push(`Pflichtfeld ${f} fehlt`);
-  }
-  const quellen = Array.isArray(data.quellen) ? data.quellen.map(String) : [];
-  if (data.quellen !== undefined && !Array.isArray(data.quellen)) fehler.push('quellen muss eine Liste sein');
+  const { data, body, bodyStartLine } = leseKopf(text, fehler);
+  pruefePflicht(data, REQUIRED_FIELDS, fehler);
+  const quellen = leseQuellen(data, fehler);
 
   const secs = sections(body, bodyStartLine);
   const karten = secs.has('Lernkarten') ? parseCards(secs.get('Lernkarten')!, fehler) : [];
@@ -56,7 +38,37 @@ export function parseTopic(text: string): Topic {
   };
 }
 
-function str(v: unknown): string {
+export interface Kopf {
+  data: Record<string, unknown>;
+  body: string;
+  bodyStartLine: number;
+}
+
+/** Normalisiert und trennt das Frontmatter; ungültiges YAML landet in `fehler`, der Text danach bleibt lesbar. */
+export function leseKopf(text: string, fehler: string[]): Kopf {
+  const src = normalize(text);
+  try {
+    return splitFrontmatter(src);
+  } catch (e) {
+    fehler.push(`Frontmatter ungültig: ${(e as Error).message.split('\n')[0]}`);
+    const m = /^---\n[\s\S]*?\n---(?:\n|$)/.exec(src);
+    if (!m) return { data: {}, body: src, bodyStartLine: 1 };
+    return { data: {}, body: src.slice(m[0].length), bodyStartLine: m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) + 1 };
+  }
+}
+
+export function pruefePflicht(data: Record<string, unknown>, felder: readonly string[], fehler: string[]): void {
+  for (const f of felder) {
+    if (data[f] === undefined || data[f] === null || data[f] === '') fehler.push(`Pflichtfeld ${f} fehlt`);
+  }
+}
+
+export function leseQuellen(data: Record<string, unknown>, fehler: string[]): string[] {
+  if (data.quellen !== undefined && !Array.isArray(data.quellen)) fehler.push('quellen muss eine Liste sein');
+  return Array.isArray(data.quellen) ? data.quellen.map(String) : [];
+}
+
+export function str(v: unknown): string {
   return v === undefined || v === null ? '' : String(v);
 }
 
@@ -134,7 +146,8 @@ function parseCards(sec: { text: string; startLine: number }, fehler: string[]):
   return cards;
 }
 
-function parseExercises(sec: { text: string; startLine: number }, fehler: string[]): Exercise[] {
+/** Liest alle ```uebung-Blöcke eines Abschnitts; fehlerhafte werden gemeldet und ausgelassen. */
+export function parseExercises(sec: { text: string; startLine: number }, fehler: string[]): Exercise[] {
   const lines = sec.text.split('\n');
   const out: Exercise[] = [];
   for (let i = 0; i < lines.length; i++) {
@@ -174,6 +187,10 @@ function toExercise(raw: unknown, zeile: number, idZeile: number | null): Exerci
   // Nur gültige IDs zählen; leere oder fremde Werte ersetzt ensureIds an idZeile.
   const id = typeof r.id === 'string' && EXERCISE_ID.test(r.id) ? r.id : null;
   const ex: Exercise = { id, typ, frage: r.frage, zurueckgezogen: r.status === 'zurückgezogen', zeile, idZeile };
+  if (r.punkte !== undefined) {
+    if (typeof r.punkte !== 'number' || !Number.isFinite(r.punkte) || r.punkte <= 0) return 'punkte muss eine Zahl > 0 sein';
+    ex.punkte = r.punkte;
+  }
 
   switch (typ) {
     case 'eingabe':

@@ -20,7 +20,7 @@ await writeFile(join(resolve(root), 'index.json'), JSON.stringify(index, null, 2
 for (const f of changedFiles) console.log(`IDs ergänzt: ${f}`);
 for (const s of index.faecher) {
   for (const e of s.fehler) console.error(`FEHLER ${s.pfad}: ${e}`);
-  for (const t of [...s.kapitel.flatMap((k) => k.themen), ...s.nichtZugeordnet]) {
+  for (const t of [...s.kapitel.flatMap((k) => k.themen), ...s.nichtZugeordnet, ...s.proben]) {
     for (const e of t.fehler) console.error(`FEHLER ${t.pfad}: ${e}`);
   }
 }

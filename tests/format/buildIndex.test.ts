@@ -91,6 +91,69 @@ describe('buildIndex', () => {
   });
 });
 
+const probeFile = (titel: string, aufgaben: string, extra = '') =>
+  `---\nid: p-${titel.toLowerCase()}\nfach: mathe\ntitel: ${titel}\ndauer_min: 30\nquellen: []\nstand: 2026-11-23\n${extra}---\n## Aufgaben\n${aufgaben}`;
+const probeAufgabe = (id: string | null, punkte = 'punkte: 2\n') =>
+  `\n\`\`\`uebung\n${id ? `id: ${id}\n` : ''}typ: eingabe\nfrage: "1+1?"\nloesung: 2\n${punkte}\`\`\`\n`;
+
+describe('buildIndex: Proben', () => {
+  it('liest <Fach>/_proben/*.md mit Aufgaben, Punkten und Dauer', async () => {
+    const { index } = await buildIndex(root, { fix: false });
+    const mathe = index.faecher[0]!;
+    expect(mathe.proben).toHaveLength(1);
+    const p = mathe.proben[0]!;
+    expect(p).toMatchObject({
+      id: 'mathe-probe-ableitungen-1',
+      titel: 'Probe-Schularbeit Ableitungen',
+      pfad: 'Mathe/_proben/Probe Ableitungen.md',
+      aufgaben: 3,
+      punkte: 12,
+      dauerMin: 20,
+      fehler: [],
+    });
+    expect(p.hash).toBe(gitBlobSha(readFileSync(join(root, p.pfad))));
+    expect(index.fehlerAnzahl).toBe(0);
+    // _proben ist kein Kapitel
+    expect(mathe.nichtZugeordnet).toEqual([]);
+  });
+
+  it('sortiert Proben nach Titel und zählt ihre Fehler mit', async () => {
+    writeFileSync(join(root, 'Mathe/_proben/b.md'), probeFile('Zweite', probeAufgabe('u-zz0001')));
+    writeFileSync(join(root, 'Mathe/_proben/c.md'), probeFile('Andere', probeAufgabe('u-zz0002', '')));
+    const { index } = await buildIndex(root, { fix: false });
+    const proben = index.faecher[0]!.proben;
+    expect(proben.map((p) => p.titel)).toEqual(['Andere', 'Probe-Schularbeit Ableitungen', 'Zweite']);
+    expect(proben[0]!.fehler.join()).toMatch(/punkte fehlt/);
+    expect(index.fehlerAnzahl).toBe(1);
+  });
+
+  it('Fach ohne _proben-Ordner hat eine leere Liste', async () => {
+    mkdirSync(join(root, 'Physik'));
+    writeFileSync(join(root, 'Physik/Physik.md'), '---\nid: physik\nname: Physik\nkuerzel: PH\nfarbe: "#336699"\nstruktur: fest\n---\n## Kapitel\n');
+    const { index } = await buildIndex(root, { fix: false });
+    expect(index.faecher.find((f) => f.id === 'physik')!.proben).toEqual([]);
+  });
+
+  it('ergänzt mit fix fehlende Aufgaben-IDs in Proben, zweiter Lauf ist ruhig', async () => {
+    const p = join(root, 'Mathe/_proben/neu.md');
+    writeFileSync(p, probeFile('Neu', probeAufgabe(null)));
+    const first = await buildIndex(root, { fix: true });
+    expect(first.changedFiles).toEqual(['Mathe/_proben/neu.md']);
+    expect(readFileSync(p, 'utf8')).toMatch(/```uebung\nid: u-[a-z0-9]{6}\n/);
+    expect(first.index.faecher[0]!.proben.find((x) => x.titel === 'Neu')!.fehler).toEqual([]);
+    const second = await buildIndex(root, { fix: true });
+    expect(second.changedFiles).toEqual([]);
+  });
+
+  it('meldet doppelte IDs zwischen Thema und Probe', async () => {
+    writeFileSync(join(root, 'Mathe/_proben/dup.md'), probeFile('Dup', probeAufgabe('u-aaa111')));
+    const { index } = await buildIndex(root, { fix: false });
+    const mathe = index.faecher[0]!;
+    expect(mathe.proben.find((x) => x.titel === 'Dup')!.fehler.join()).toMatch(/u-aaa111.*doppelt/);
+    expect(mathe.kapitel[0]!.themen.find((t) => t.titel === 'Ableitungen')!.fehler.join()).toMatch(/u-aaa111.*doppelt/);
+  });
+});
+
 describe('CLI build-index', () => {
   it('schreibt index.json und endet mit 0 ohne Fehler', () => {
     execFileSync(process.execPath, ['--import', 'tsx', 'scripts/build-index.ts', root], { stdio: 'pipe' });

@@ -1,5 +1,6 @@
+import { parseProbe } from './parseProbe';
 import { parseTopic } from './parseTopic';
-import type { Topic } from './types';
+import type { Card, Exercise } from './types';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 /** Zeilen, an die keine ID angehängt werden darf (sonst bricht die Darstellung in Obsidian). */
@@ -24,13 +25,14 @@ type Edit =
  * eigenen Zeile nach einem Code-, Formel- oder Tabellenblock) und Übungs-IDs (`id: u-…`).
  * Ändert sonst nichts; BOM und Zeilenenden bleiben erhalten. Neue IDs werden in `taken`
  * eingetragen. Dateien mit kaputtem Frontmatter werden nicht angefasst.
+ * `art: 'probe'` liest die Datei als Probe-Schularbeit (Aufgaben statt Übungen, keine Karten).
  */
-export function ensureIds(text: string, taken: Set<string>): { text: string; added: string[] } {
+export function ensureIds(text: string, taken: Set<string>, art: 'thema' | 'probe' = 'thema'): { text: string; added: string[] } {
   const bom = text.startsWith('﻿') ? '﻿' : '';
   const raw = bom ? text.slice(1) : text;
   const eol = raw.includes('\r\n') ? '\r\n' : '\n';
   const lines = raw.split(/\r\n|\r|\n/);
-  const topic = parseTopic(raw);
+  const topic = art === 'probe' ? probeInhalt(parseProbe(raw)) : parseTopic(raw);
   if (topic.fehler.some((f) => f.startsWith('Frontmatter'))) return { text, added: [] };
 
   for (const k of topic.karten) if (k.id) taken.add(k.id);
@@ -66,8 +68,19 @@ export function ensureIds(text: string, taken: Set<string>): { text: string; add
   return { text: bom + lines.join(eol), added };
 }
 
+/** Karten und Übungen einer Datei (Thema oder Probe), soweit sie IDs tragen können. */
+export interface IdInhalt {
+  karten: Card[];
+  uebungen: Exercise[];
+}
+
+/** Probe als ID-Inhalt (für ensureIds und findDuplicateIds): ihre Aufgaben zählen als Übungen. */
+export function probeInhalt(p: ReturnType<typeof parseProbe>): IdInhalt & { fehler: string[] } {
+  return { karten: [], uebungen: p.aufgaben, fehler: p.fehler };
+}
+
 /** ID → Fundorte (`pfad:zeile`), nur IDs mit mehr als einem Vorkommen. */
-export function findDuplicateIds(topics: { pfad: string; topic: Topic }[]): Map<string, string[]> {
+export function findDuplicateIds(topics: { pfad: string; topic: IdInhalt }[]): Map<string, string[]> {
   const seen = new Map<string, string[]>();
   for (const { pfad, topic } of topics) {
     for (const item of [...topic.karten, ...topic.uebungen]) {

@@ -21,6 +21,8 @@ export interface Exercise {
   optionen?: string[];
   richtig?: number[];
   musterloesung?: string;
+  /** Punkte in einer Probe-Schularbeit (dort Pflicht, in Themen optional) */
+  punkte?: number;
   zurueckgezogen: boolean;
   /** 1-basierte Zeile der öffnenden ```uebung-Zeile */
   zeile: number;
@@ -44,6 +46,26 @@ export interface Topic {
   mindmap: MindmapNode | null;
   karten: Card[];
   uebungen: Exercise[];
+  fehler: string[];
+}
+
+export interface NotenStufe {
+  note: number;
+  abProzent: number;
+}
+
+/** Probe-Schularbeit: eigene Datei unter `<Fach>/_proben/` */
+export interface Probe {
+  id: string;
+  fach: string;
+  titel: string;
+  dauerMin: number;
+  quellen: string[];
+  stand: string;
+  /** null = kein echter Schlüssel bekannt (dann zeigt die App keine Note) */
+  notenschluessel: NotenStufe[] | null;
+  hinweise: string;
+  aufgaben: Exercise[];
   fehler: string[];
 }
 
@@ -83,6 +105,19 @@ export interface IndexTopic {
   fehler: string[];
 }
 
+export interface IndexProbe {
+  id: string | null;
+  titel: string;
+  pfad: string;
+  hash: string;
+  /** aktive Aufgaben */
+  aufgaben: number;
+  /** Summe der Punkte der aktiven Aufgaben */
+  punkte: number;
+  dauerMin: number;
+  fehler: string[];
+}
+
 export interface IndexChapter {
   ordner: string;
   titel: string;
@@ -99,6 +134,8 @@ export interface IndexSubject {
   hash: string;
   kapitel: IndexChapter[];
   nichtZugeordnet: IndexTopic[];
+  /** Probe-Schularbeiten, nach Titel sortiert (fehlt in Indizes vor Plan 4) */
+  proben: IndexProbe[];
   fehler: string[];
 }
 
