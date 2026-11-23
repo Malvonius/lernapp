@@ -12,5 +12,5 @@
     "types": ["node", "vite/client", "@testing-library/jest-dom/vitest"],
     "noEmit": true
   },
-  "include": ["src", "tests", "scripts", "vite.config.ts", "vitest.config.ts", "pwa-assets.config.ts"]
+  "include": ["src", "tests", "scripts", "e2e", "playwright.config.ts", "vite.config.ts", "vitest.config.ts", "pwa-assets.config.ts"]
 }
