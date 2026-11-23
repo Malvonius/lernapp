@@ -76,7 +76,7 @@ function errorFor(res: Response, put: boolean): GitHubError {
 /** Höchstdauer je Anfrage inkl. Antwort-Inhalt: ein hängendes Netz darf den Abgleich nie dauerhaft blockieren. */
 export const TIMEOUT_MS = 20_000;
 /** Upload großer Dateien (bis 25 MB) am Handy braucht länger. */
-export const BINARY_TIMEOUT_MS = 120_000;
+export const BINARY_TIMEOUT_MS = 300_000;
 
 /** Liest den Antwort-Inhalt; Abbruch (Timeout) oder Verbindungsfehler dabei → network. */
 async function lies<T>(read: () => Promise<T>): Promise<T> {

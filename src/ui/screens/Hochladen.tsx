@@ -20,6 +20,13 @@ interface Eintrag {
 
 const STATUS_TEXT: Record<Exclude<Status, 'fehler'>, string> = { wartet: 'wartet', laedt: 'lädt …', fertig: 'fertig' };
 
+/** „3 B“, „2 KB“, „1,5 MB“ */
+function groesse(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / 1024 / 1024).toLocaleString('de-AT', { maximumFractionDigits: 1 })} MB`;
+}
+
 const fehlerMeldung = (e: unknown): string => {
   if (e instanceof UploadFehler) return e.message;
   if (e instanceof GitHubError) {
@@ -151,21 +158,24 @@ export function Hochladen() {
           void hochladen();
         }}
       >
-        <div className="field">
-          <label htmlFor={ids.dateien}>Dateien</label>
-          <input id={ids.dateien} className="input" type="file" multiple accept={ACCEPT} onChange={dateienHinzu} />
-          <p className="hint">PDF, Word, PowerPoint, Excel, Fotos, ZIP oder Text, je höchstens 25 MB.</p>
+        <div className="datei-wahl">
+          <input id={ids.dateien} className="visually-hidden" type="file" multiple accept={ACCEPT} onChange={dateienHinzu} />
+          <label htmlFor={ids.dateien} className="button button--quiet">
+            Dateien auswählen
+          </label>
+          <input id={ids.kamera} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={dateienHinzu} />
+          <label htmlFor={ids.kamera} className="button button--quiet">
+            Foto aufnehmen
+          </label>
         </div>
-        <div className="field">
-          <label htmlFor={ids.kamera}>Foto aufnehmen</label>
-          <input id={ids.kamera} className="input" type="file" accept="image/*" capture="environment" onChange={dateienHinzu} />
-        </div>
+        <p className="hint datei-wahl__hinweis">PDF, Word, PowerPoint, Excel, Fotos, ZIP oder Text, je höchstens 25 MB.</p>
 
         {eintraege.length > 0 && (
           <ul className="datei-liste" aria-label="Ausgewählte Dateien">
             {eintraege.map((e) => (
               <li key={e.id} className="datei" data-status={e.status}>
                 <span className="datei__name">{e.datei.name}</span>
+                <span className="datei__groesse">{groesse(e.datei.size)}</span>
                 <span className="datei__status" role="status" aria-live="polite">
                   {e.status === 'fehler' ? `Fehler: ${e.meldung ?? ''}` : STATUS_TEXT[e.status]}
                 </span>

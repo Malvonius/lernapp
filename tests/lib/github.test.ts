@@ -190,12 +190,12 @@ describe('putBinary', () => {
     expect(body.content.length).toBe(Math.ceil(gross.length / 3) * 4);
     expect(body.content.slice(0, 8)).toBe('BwcHBwcH');
   });
-  it('Timeout: eigenes Limit von 120 s statt Standard', async () => {
+  it('Timeout: eigenes Limit von 300 s statt Standard', async () => {
     const spy = vi.spyOn(AbortSignal, 'timeout');
     try {
       const { gh } = client(async () => res(201, { content: { sha: 'T' } }));
       await gh.putBinary('a.bin', new Uint8Array([1]), null, 'm');
-      expect(spy).toHaveBeenCalledWith(120_000);
+      expect(spy).toHaveBeenCalledWith(300_000);
     } finally {
       spy.mockRestore();
     }

@@ -165,16 +165,27 @@ test('Mindmap mit feindlichem Knotentext: kein HTML, kein javascript:-Link, Seit
 });
 
 test('Unterlagen hochladen: Datei und Hinweis landen in _inbox, Rückfrage von Bob ist lesbar', async ({ page, context }) => {
-  const gh = new FakeGitHub(await ladeFixture());
+  const dateien = await ladeFixture();
+  const idx = JSON.parse(dateien.get('index.json')!);
+  idx.rueckfragen = 1;
+  dateien.set('index.json', JSON.stringify(idx));
+  const gh = new FakeGitHub(dateien);
   gh.rueckfragen.set('2026-11-23-skript.md', '# Rückfrage: Skript\n- **Unklar:** Welches Kapitel?\n\n<img src=x onerror="window.__xss = 1">');
   await context.route('https://api.github.com/**', (route) => gh.handle(route));
   const fehler = sammleFehler(page);
 
   await einrichten(page);
+  // Hinweis auf der Startseite führt direkt zum Abschnitt „Rückfragen von Bob“
+  await page.getByRole('link', { name: '1 Rückfrage von Bob' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Hochladen' })).toBeVisible();
+  expect(page.url()).toContain('#/hochladen#rueckfragen');
+  await expect(page.getByRole('heading', { name: 'Rückfragen von Bob' })).toBeInViewport();
+  await expect(page.getByText('2026-11-23-skript.md')).toBeVisible();
+  await page.getByRole('link', { name: 'Lernapp' }).click();
   await page.getByRole('link', { name: 'Unterlagen hochladen' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Hochladen' })).toBeVisible();
 
-  await page.getByLabel('Dateien').setInputFiles({ name: 'Übung 1.pdf', mimeType: 'application/pdf', buffer: Buffer.from([0, 255, 137, 80]) });
+  await page.getByLabel('Dateien auswählen').setInputFiles({ name: 'Übung 1.pdf', mimeType: 'application/pdf', buffer: Buffer.from([0, 255, 137, 80]) });
   await page.getByLabel('Fach').selectOption('mathe');
   await page.getByLabel('Wunsch (optional)').fill('mehr Übungen');
   await keinHorizontalesScrollen(page);

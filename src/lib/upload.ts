@@ -10,7 +10,10 @@ const INBOX = '_inbox';
 const RUECKFRAGE = '_rueckfrage';
 const MAX_NAME = 120;
 const MAX_ENDUNG = 12;
-const MAX_VERSUCHE = 25;
+const MAX_VERSUCHE = 3;
+const META_WIEDERHOLUNGEN = 2;
+const PAUSE_MS = 250;
+const warte = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 const endungVon = (name: string) => {
   const i = name.lastIndexOf('.');
@@ -46,23 +49,28 @@ function zeitstempel(jetzt: Date): string {
   return `${teile.year}${teile.month}${teile.day}-${teile.hour}${teile.minute}${teile.second}`;
 }
 
-/** Entfernt Pfadtrenner, Steuer- und Sonderzeichen sowie „..“; trennt Endung ab. */
+const UNERLAUBT = /[\\/:*?"<>|\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+const EINZELNES_SURROGAT = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+
+/** Entfernt halbe Surrogatpaare (z. B. nach dem Kürzen), damit encodeURIComponent nie wirft. */
+const wohlgeformt = (t: string) => t.replace(EINZELNES_SURROGAT, '');
+
+/** Entfernt Pfadtrenner, Steuer-, Bidi- und Sonderzeichen sowie „..“; trennt zuerst die Endung ab, damit sie nie verloren geht. */
 function saubererName(name: string): { basis: string; endung: string } {
-  let s = name.replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '');
-  while (s.includes('..')) s = s.replaceAll('..', '');
-  s = s.trim();
+  const s = wohlgeformt(name.replace(UNERLAUBT, '')).trim();
   const i = s.lastIndexOf('.');
   let basis = i >= 0 ? s.slice(0, i) : s;
   let endung = i >= 0 ? s.slice(i).trim().slice(0, MAX_ENDUNG) : '';
   if (endung === '.') endung = '';
+  while (basis.includes('..')) basis = basis.replaceAll('..', '');
   basis = basis.replace(/^[.\s]+/, '').replace(/[.\s]+$/, '');
   if (!basis) basis = 'datei';
-  return { basis: basis.slice(0, Math.max(1, MAX_NAME - endung.length)), endung };
+  return { basis: wohlgeformt(basis.slice(0, Math.max(1, MAX_NAME - endung.length))), endung };
 }
 
 function pfadFuer(stamp: string, basis: string, endung: string, nr: number): string {
   const suffix = nr > 1 ? `-${nr}` : '';
-  const b = basis.slice(0, Math.max(1, MAX_NAME - endung.length - suffix.length));
+  const b = wohlgeformt(basis.slice(0, Math.max(1, MAX_NAME - endung.length - suffix.length)));
   return `${INBOX}/${stamp}_${b}${suffix}${endung}`;
 }
 
@@ -109,19 +117,19 @@ export async function ladeHoch(
 
   let pfad = '';
   let nr = 1;
-  for (let versuch = 0; ; versuch++) {
+  for (let versuch = 1; ; versuch++) {
     while (vorhanden.has(pfadFuer(stamp, basis, endung, nr).slice(INBOX.length + 1))) nr++;
     pfad = pfadFuer(stamp, basis, endung, nr);
+    const kurz = pfad.slice(INBOX.length + 1);
     try {
-      await client.putBinary(pfad, datei.bytes, null, `inbox: ${pfad.slice(INBOX.length + 1)}`);
+      await client.putBinary(pfad, datei.bytes, null, `inbox: ${kurz}`);
       break;
     } catch (e) {
-      // Name inzwischen vergeben (veraltete Liste, zweites Gerät): nächsten Suffix probieren, nie überschreiben
-      if (e instanceof GitHubError && e.kind === 'conflict' && versuch < MAX_VERSUCHE) {
-        vorhanden.add(pfad.slice(INBOX.length + 1));
-        continue;
-      }
-      throw e;
+      // Nur bei echter Namenskollision (Name steht jetzt in der Inbox) und höchstens dreimal neu; sonst nicht 33 MB erneut senden
+      if (!(e instanceof GitHubError) || e.kind !== 'conflict' || versuch >= MAX_VERSUCHE) throw e;
+      const jetztDa = await client.listDir(INBOX).catch(() => null);
+      if (!jetztDa || !jetztDa.includes(kurz)) throw e;
+      for (const n of jetztDa) vorhanden.add(n);
     }
   }
 
@@ -131,14 +139,24 @@ export async function ladeHoch(
     hochgeladen: jetzt.toISOString(),
     geraet,
   };
-  try {
-    await client.putFile(`${pfad}.meta.json`, `${JSON.stringify(inhalt, null, 2)}\n`, null, `inbox: Hinweis zu ${pfad.slice(INBOX.length + 1)}`);
-  } catch {
-    throw new UploadFehler(
-      'meta',
-      pfad,
-      'Die Datei ist hochgeladen, aber Fach und Wunsch nicht. Bitte nochmal versuchen oder Bob die Angaben im Chat sagen.',
-    );
+  const text = `${JSON.stringify(inhalt, null, 2)}
+`;
+  for (let versuch = 0; ; versuch++) {
+    try {
+      await client.putFile(`${pfad}.meta.json`, text, null, `inbox: Hinweis zu ${pfad.slice(INBOX.length + 1)}`);
+      break;
+    } catch (e) {
+      const vorlaeufig = e instanceof GitHubError && (e.kind === 'network' || e.kind === 'conflict');
+      if (vorlaeufig && versuch < META_WIEDERHOLUNGEN) {
+        await warte(PAUSE_MS);
+        continue;
+      }
+      throw new UploadFehler(
+        'meta',
+        pfad,
+        'Die Datei ist hochgeladen, aber Fach und Wunsch nicht. Bitte nochmal versuchen oder Bob die Angaben im Chat sagen.',
+      );
+    }
   }
   return { pfad };
 }

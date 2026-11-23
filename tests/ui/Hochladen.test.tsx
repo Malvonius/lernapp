@@ -64,7 +64,7 @@ describe('Hochladen: Upload', () => {
   it('lädt Datei und .meta.json (Fach, Wunsch, Gerät) hoch und zeigt „fertig“', async () => {
     const { client, rec } = uploadClient();
     render(<App db={db} createClient={() => client} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('Skript Übung.pdf'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('Skript Übung.pdf'));
     await screen.findByRole('option', { name: 'Angewandte Mathematik' });
     fireEvent.change(screen.getByLabelText('Fach'), { target: { value: 'mathe' } });
     fireEvent.change(screen.getByLabelText(/Wunsch/), { target: { value: 'mehr Übungen zu Taylor' } });
@@ -82,7 +82,7 @@ describe('Hochladen: Upload', () => {
   it('„Bob entscheidet“ ist vorgewählt und ergibt fach null', async () => {
     const { client, rec } = uploadClient();
     render(<App db={db} createClient={() => client} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('a.png'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.png'));
     expect(screen.getByLabelText('Fach')).toHaveDisplayValue('Bob entscheidet');
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
     await screen.findByText('fertig');
@@ -92,7 +92,7 @@ describe('Hochladen: Upload', () => {
   it('mehrere Dateien: jede bekommt ihren Status', async () => {
     const { client, rec } = uploadClient();
     render(<App db={db} createClient={() => client} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('a.pdf'), datei('b.docx'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'), datei('b.docx'));
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
     await waitFor(() => expect(screen.getAllByText('fertig')).toHaveLength(2));
     expect(rec.binaer.map((b) => b.pfad.replace(/^_inbox\/\d{8}-\d{6}_/, '')).sort()).toEqual(['a.pdf', 'b.docx']);
@@ -112,10 +112,38 @@ describe('Hochladen: Upload', () => {
 
   it('Dateiauswahl erlaubt nur die freigegebenen Endungen', async () => {
     render(<App db={db} createClient={() => uploadClient().client} />);
-    const feld = await screen.findByLabelText('Dateien');
+    const feld = await screen.findByLabelText('Dateien auswählen');
     expect(feld).toHaveAttribute('multiple');
     expect(feld.getAttribute('accept')).toContain('.pdf');
     expect(feld.getAttribute('accept')).toContain('.heic');
+  });
+
+  it('gestylte deutsche Knöpfe statt roher Dateifelder; Felder bleiben per Label erreichbar', async () => {
+    render(<App db={db} createClient={() => uploadClient().client} />);
+    const feld = await screen.findByLabelText('Dateien auswählen');
+    const knopf = screen.getByText('Dateien auswählen');
+    expect(knopf.tagName).toBe('LABEL');
+    expect(knopf).toHaveClass('button');
+    expect(feld).toHaveClass('visually-hidden');
+    expect(feld).not.toHaveAttribute('hidden');
+    expect(screen.getByText('Foto aufnehmen')).toHaveClass('button');
+    expect(screen.getByLabelText('Foto aufnehmen')).toHaveClass('visually-hidden');
+    expect(screen.queryByText(/Choose|No file/i)).toBeNull();
+  });
+
+  it('Liste der gewählten Dateien: Name, Größe, Entfernen', async () => {
+    const { client, rec } = uploadClient();
+    render(<App db={db} createClient={() => client} />);
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'), datei('b.docx', new Array(2048).fill(1)));
+    const liste = screen.getByRole('list', { name: 'Ausgewählte Dateien' });
+    expect(within(liste).getByText('a.pdf')).toBeInTheDocument();
+    expect(within(liste).getByText('3 B')).toBeInTheDocument();
+    expect(within(liste).getByText('2 KB')).toBeInTheDocument();
+    fireEvent.click(within(liste).getByRole('button', { name: 'a.pdf entfernen' }));
+    expect(within(liste).queryByText('a.pdf')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
+    await screen.findByText('fertig');
+    expect(rec.binaer).toHaveLength(1);
   });
 
   it('falscher Dateityp und > 25 MB werden vor dem Upload abgelehnt', async () => {
@@ -123,7 +151,7 @@ describe('Hochladen: Upload', () => {
     render(<App db={db} createClient={() => client} />);
     const gross = datei('gross.pdf');
     Object.defineProperty(gross, 'size', { value: 25 * 1024 * 1024 + 1 });
-    waehle(await screen.findByLabelText('Dateien'), datei('virus.exe'), gross);
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('virus.exe'), gross);
     expect(await screen.findByText(/Dateityp nicht erlaubt/)).toBeInTheDocument();
     expect(screen.getByText(/größer als 25 MB/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hochladen' })).toBeDisabled();
@@ -133,7 +161,7 @@ describe('Hochladen: Upload', () => {
   it('Fehler (Token ohne Schreibrecht) → feste Meldung, Datei bleibt zum erneuten Versuch', async () => {
     const { client } = uploadClient({ putFehler: new GitHubError('notfound', 404) });
     render(<App db={db} createClient={() => client} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('a.pdf'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'));
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
     expect(await screen.findByText(/Fehler: .*ohne Schreibrecht/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hochladen' })).toBeEnabled();
@@ -142,7 +170,7 @@ describe('Hochladen: Upload', () => {
   it('Datei ok, meta fehlgeschlagen → Meldung „bitte nochmal“', async () => {
     const { client } = uploadClient({ metaFehler: new GitHubError('network') });
     render(<App db={db} createClient={() => client} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('a.pdf'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'));
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
     expect(await screen.findByText(/nochmal/)).toBeInTheDocument();
     expect(screen.queryByText('fertig')).toBeNull();
@@ -160,7 +188,7 @@ describe('Hochladen: Upload', () => {
       },
     };
     render(<App db={db} createClient={() => langsam} />);
-    waehle(await screen.findByLabelText('Dateien'), datei('a.pdf'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'));
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen' }));
     expect(await screen.findByText('lädt …')).toBeInTheDocument();
     expect(screen.getByLabelText('Wunsch (optional)')).toBeEnabled();
@@ -173,7 +201,7 @@ describe('Hochladen: Upload', () => {
     const kaputt = fakeClient(index, { fail: new GitHubError('network') }).client;
     render(<App db={db} createClient={() => kaputt} />);
     expect(await screen.findByText(/Offline: Hochladen geht erst wieder mit Verbindung/)).toBeInTheDocument();
-    waehle(await screen.findByLabelText('Dateien'), datei('a.pdf'));
+    waehle(await screen.findByLabelText('Dateien auswählen'), datei('a.pdf'));
     expect(screen.getByRole('button', { name: 'Hochladen' })).toBeDisabled();
   });
 });

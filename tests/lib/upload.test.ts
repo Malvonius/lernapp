@@ -79,6 +79,22 @@ describe('inboxPfad', () => {
     expect(inboxPfad('.hidden.md', JETZT)).toBe('_inbox/20261123-201500_hidden.md');
     expect(inboxPfad('///.pdf', JETZT)).toBe('_inbox/20261123-201500_datei.pdf');
   });
+  it('Endung bleibt bei „..“ vor der Endung erhalten', () => {
+    expect(inboxPfad('scan..pdf', JETZT)).toBe('_inbox/20261123-201500_scan.pdf');
+    expect(inboxPfad('..pdf', JETZT)).toBe('_inbox/20261123-201500_datei.pdf');
+    expect(inboxPfad('a...b..pdf', JETZT)).toBe('_inbox/20261123-201500_a.b.pdf');
+  });
+  it('einzelne Surrogate, Steuer- und Bidi-Zeichen werden entfernt; encodeURIComponent wirft nie', () => {
+    const namen = ['a�b.pdf', 'a�b.pdf', 'a‮b‭c⁦d⁩e.pdf', 'x‏y؜z.pdf', 'ok😀.pdf', '😀'.repeat(100) + '.pdf'];
+    for (const n of namen) {
+      const p = inboxPfad(n, JETZT);
+      expect(() => encodeURIComponent(p), n).not.toThrow();
+      expect(p, n).not.toMatch(/[‪-‮⁦-⁩‎‏؜]/);
+      expect(p.endsWith('.pdf'), n).toBe(true);
+    }
+    expect(inboxPfad('a‮b‭c.pdf', JETZT)).toBe('_inbox/20261123-201500_abc.pdf');
+    expect(inboxPfad('ok😀.pdf', JETZT)).toContain('ok😀.pdf');
+  });
   it('kürzt auf höchstens 120 Zeichen und behält die Endung', () => {
     const p = inboxPfad('ä'.repeat(300) + '.pdf', JETZT);
     const name = p.slice('_inbox/20261123-201500_'.length);
@@ -122,11 +138,73 @@ describe('ladeHoch', () => {
   });
   it('Kollision, die erst beim Schreiben auffällt (422), nimmt den nächsten Suffix', async () => {
     const repo = new FakeRepo();
-    repo.listDir = async () => []; // Liste veraltet
+    const echt = repo.listDir.bind(repo);
+    let aufrufe = 0;
+    repo.listDir = async (pfad: string) => (aufrufe++ === 0 ? [] : echt(pfad)); // erste Liste veraltet
     repo.files.set('_inbox/20261123-201500_Skript.pdf', new Uint8Array([0]));
     const r = await ladeHoch(repo, datei, meta, 'pc', JETZT);
     expect(r.pfad).toBe('_inbox/20261123-201500_Skript-2.pdf');
     expect(repo.files.get('_inbox/20261123-201500_Skript.pdf')).toEqual(new Uint8Array([0]));
+  });
+  it('422 ohne echte Namenskollision: genau ein Upload, Fehler wird weitergereicht', async () => {
+    const repo = new FakeRepo();
+    let binaer = 0;
+    repo.putBinary = async () => {
+      binaer++;
+      throw new GitHubError('conflict', 422);
+    };
+    await expect(ladeHoch(repo, datei, meta, 'pc', JETZT)).rejects.toMatchObject({ kind: 'conflict' });
+    expect(binaer).toBe(1);
+  });
+  it('echte Kollisionen: höchstens 3 Versuche', async () => {
+    const repo = new FakeRepo();
+    let binaer = 0;
+    const echt = repo.listDir.bind(repo);
+    let n = 0;
+    repo.listDir = async (pfad: string) => (n++ === 0 ? [] : echt(pfad));
+    repo.putBinary = async (pfad: string) => {
+      binaer++;
+      repo.files.set(pfad, new Uint8Array([0])); // jemand war schneller
+      throw new GitHubError('conflict', 422);
+    };
+    await expect(ladeHoch(repo, datei, meta, 'pc', JETZT)).rejects.toMatchObject({ kind: 'conflict' });
+    expect(binaer).toBe(3);
+  });
+  it('meta: transienter Fehler wird wiederholt, danach klappt es ohne UploadFehler', async () => {
+    const repo = new FakeRepo();
+    let versuche = 0;
+    const echt = repo.putFile.bind(repo);
+    repo.putFile = async (pfad: string, text: string) => {
+      if (++versuche < 3) throw new GitHubError(versuche === 1 ? 'network' : 'conflict', versuche === 1 ? undefined : 409);
+      return echt(pfad, text);
+    };
+    const r = await ladeHoch(repo, datei, meta, 'pc', JETZT);
+    expect(versuche).toBe(3);
+    expect(repo.files.has(`${r.pfad}.meta.json`)).toBe(true);
+  });
+  it('meta: dauerhafter Fehler → nach 3 Versuchen UploadFehler, Datei nur einmal hochgeladen', async () => {
+    const repo = new FakeRepo();
+    let versuche = 0;
+    let binaer = 0;
+    const echtB = repo.putBinary.bind(repo);
+    repo.putBinary = async (p: string, b: Uint8Array) => (binaer++, echtB(p, b));
+    repo.putFile = async () => {
+      versuche++;
+      throw new GitHubError('network');
+    };
+    await expect(ladeHoch(repo, datei, meta, 'pc', JETZT)).rejects.toBeInstanceOf(UploadFehler);
+    expect(versuche).toBe(3);
+    expect(binaer).toBe(1);
+  });
+  it('meta: Auth-Fehler wird nicht wiederholt', async () => {
+    const repo = new FakeRepo();
+    let versuche = 0;
+    repo.putFile = async () => {
+      versuche++;
+      throw new GitHubError('auth', 401);
+    };
+    await expect(ladeHoch(repo, datei, meta, 'pc', JETZT)).rejects.toBeInstanceOf(UploadFehler);
+    expect(versuche).toBe(1);
   });
   it('böser Dateiname landet trotzdem nur in _inbox/', async () => {
     const repo = new FakeRepo();

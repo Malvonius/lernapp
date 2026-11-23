@@ -1231,3 +1231,11 @@ input[type='radio'] { accent-color: var(--c-accent); }
 .rueckfrage summary { overflow-wrap: anywhere; }
 .rueckfrage__text { padding-bottom: var(--sp-4); color: var(--c-text); font-size: 1rem; }
 input[type='file'].input { padding-block: var(--sp-2); }
+
+/* Dateiauswahl: versteckte Felder, gestylte Knöpfe (Fokus des Felds zeigt Ring am Knopf) */
+.datei-wahl { position: relative; display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.datei-wahl .button { flex: 1 1 10rem; }
+.datei-wahl input:focus-visible + label { outline: 2px solid var(--c-focus); outline-offset: 2px; }
+.datei-wahl__hinweis, .hint { color: var(--c-muted); font-size: var(--fs-sm); }
+.datei-wahl__hinweis { margin: 0 0 var(--sp-5); }
+.datei__groesse { color: var(--c-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
