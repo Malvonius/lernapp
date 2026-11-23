@@ -64,6 +64,20 @@ describe('Startseite', () => {
     expect(screen.getByRole('link', { name: 'Einstellungen' })).toHaveAttribute('href', '#/einstellungen');
   });
 
+  it('index.json 404 (Token ohne Repo-Zugriff) → Hinweis auf „Repository access“ mit Link zu den Einstellungen', async () => {
+    await mitZugang();
+    const { client } = fakeClient(index, { fail: new GitHubError('notfound', 404) });
+    render(<App db={db} createClient={() => client} />);
+    expect(await screen.findByText('Token ohne Zugriff auf Malvonius/lernstoff – unter „Repository access“ das Repo auswählen')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Einstellungen' })).toHaveAttribute('href', '#/einstellungen');
+  });
+
+  it('IndexedDB nicht nutzbar → „Lokaler Speicher nicht verfügbar (privater Modus?)“', async () => {
+    const kaputt = { get: () => Promise.reject(new DOMException('x', 'InvalidStateError')) } as unknown as LernDatabase;
+    render(<App db={kaputt} createClient={() => fakeClient(index).client} />);
+    expect(await screen.findByText('Lokaler Speicher nicht verfügbar (privater Modus?)')).toBeInTheDocument();
+  });
+
   it('Ratelimit → eigene Meldung', async () => {
     await mitZugang();
     const { client } = fakeClient(index, { fail: new GitHubError('ratelimit', 403) });

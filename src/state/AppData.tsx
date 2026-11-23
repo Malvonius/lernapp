@@ -209,7 +209,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     })().catch(() => {
       // IndexedDB nicht nutzbar (z. B. privater Modus): nicht ewig „Lädt …“ zeigen
       if (abgebrochen) return;
-      setSyncStatus({ laeuft: false, offline: false, stand: null, fehler: new GitHubError('other') });
+      setSyncStatus({ laeuft: false, offline: false, stand: null, fehler: new GitHubError('speicher') });
       setBereit(true);
     });
     return () => {

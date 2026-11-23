@@ -138,7 +138,10 @@ describe('syncProgress', () => {
     const repo = new FakeRepo();
     repo.set('_fortschritt/pc.json', 'müll');
     await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z'));
-    await expect(syncProgress(repo, db, 'pc')).rejects.toMatchObject({ kind: 'other' });
+    await expect(syncProgress(repo, db, 'pc')).rejects.toMatchObject({
+      kind: 'beschaedigt',
+      message: 'Fortschrittsdatei auf GitHub ist beschädigt – Bob muss sie reparieren',
+    });
     expect(repo.files.get('_fortschritt/pc.json')!.text).toBe('müll');
     expect(await getOutbox(db)).toHaveLength(1);
   });
@@ -238,5 +241,15 @@ describe('syncProgress', () => {
 
   it('leerer Gerätename: normaler Error', async () => {
     await expect(syncProgress(new FakeRepo(), db, '')).rejects.not.toBeInstanceOf(GitHubError);
+  });
+});
+
+describe('syncProgress: beschädigte eigene Datei bei leerer Outbox', () => {
+  it('meldet „beschädigt“ und lässt die Datei unverändert', async () => {
+    const repo = new FakeRepo();
+    repo.set('_fortschritt/pc.json', '{kaputt');
+    await expect(syncProgress(repo, db, 'pc')).rejects.toMatchObject({ kind: 'beschaedigt' });
+    expect(repo.files.get('_fortschritt/pc.json')!.text).toBe('{kaputt');
+    expect(repo.puts).toBe(0);
   });
 });

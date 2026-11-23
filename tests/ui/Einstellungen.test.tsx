@@ -56,6 +56,17 @@ describe('Einrichten', () => {
   });
 });
 
+describe('Einrichten: Token ohne Repo-Zugriff', () => {
+  it('testAccess 404 → Hinweis auf „Repository access“, Token nicht gespeichert', async () => {
+    const { client } = fakeClient(index, { fail: new GitHubError('notfound', 404) });
+    render(<App db={db} createClient={() => client} />);
+    fireEvent.change(await screen.findByLabelText('GitHub-Token'), { target: { value: 'ohne-repo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verbindung prüfen' }));
+    expect(await screen.findByText('Token ohne Zugriff auf Malvonius/lernstoff – unter „Repository access“ das Repo auswählen')).toBeInTheDocument();
+    expect(await getSetting(db, 'token')).toBeUndefined();
+  });
+});
+
 describe('Einstellungen', () => {
   beforeEach(async () => {
     await setSetting(db, 'token', 'test-token');

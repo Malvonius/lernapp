@@ -97,7 +97,7 @@ export async function syncProgress(
           if (!gelesen) {
             delete etags[eigenerName];
             await setMeta(db, ETAGS, etags);
-            throw new GitHubError('other');
+            throw new GitHubError('beschaedigt');
           }
           await addEvents(db, gelesen as StoredEvent[]);
         }
@@ -113,7 +113,7 @@ export async function syncProgress(
       let vorhanden: Ereignis[] = [];
       if (datei) {
         const gelesen = parseDatei(datei.text);
-        if (!gelesen) throw new GitHubError('other'); // nie überschreiben
+        if (!gelesen) throw new GitHubError('beschaedigt'); // nie überschreiben
         vorhanden = gelesen;
         await addEvents(db, vorhanden as StoredEvent[]);
       }

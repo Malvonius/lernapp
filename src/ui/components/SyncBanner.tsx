@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { REPO } from '../../lib/config';
 import type { GitHubError } from '../../lib/github';
 import { useAppData } from '../../state/AppData';
 
@@ -12,7 +13,8 @@ export function fehlerText(e: GitHubError, hatDaten: boolean): string {
     case 'network':
       return hatDaten ? 'Keine Verbindung zu GitHub' : 'Keine Verbindung und noch keine Daten gespeichert';
     case 'notfound':
-      return 'Lernstoff-Repo nicht gefunden';
+      // GitHub antwortet bei einem Token ohne Zugriff auf ein privates Repo mit 404, nicht 403
+      return `Token ohne Zugriff auf ${REPO.owner}/${REPO.repo} – unter „Repository access“ das Repo auswählen`;
     default:
       return e.message;
   }

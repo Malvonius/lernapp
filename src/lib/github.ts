@@ -1,6 +1,7 @@
 import { REPO } from './config';
 
-export type GitHubErrorKind = 'auth' | 'notfound' | 'conflict' | 'ratelimit' | 'network' | 'other';
+/** 'beschaedigt': eigene Fortschrittsdatei unlesbar; 'speicher': IndexedDB nicht nutzbar (beide ohne HTTP, aber im selben Fehlerweg) */
+export type GitHubErrorKind = 'auth' | 'notfound' | 'conflict' | 'ratelimit' | 'network' | 'other' | 'beschaedigt' | 'speicher';
 
 const MESSAGES: Record<GitHubErrorKind, string> = {
   auth: 'GitHub hat den Zugang abgelehnt (Token prüfen).',
@@ -9,6 +10,8 @@ const MESSAGES: Record<GitHubErrorKind, string> = {
   ratelimit: 'GitHub-Anfragelimit erreicht.',
   network: 'Keine Verbindung zu GitHub.',
   other: 'GitHub hat einen Fehler gemeldet.',
+  beschaedigt: 'Fortschrittsdatei auf GitHub ist beschädigt – Bob muss sie reparieren',
+  speicher: 'Lokaler Speicher nicht verfügbar (privater Modus?)',
 };
 
 /** Fehlermeldungen sind feste Texte: nie Token, Antwort- oder Originaltexte übernehmen. */

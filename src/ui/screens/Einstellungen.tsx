@@ -57,7 +57,7 @@ export function Einstellungen() {
   return (
     <section className="screen" aria-labelledby={`${id}-h`}>
       <h1 id={`${id}-h`}>{titel}</h1>
-      {hatToken && <SyncBanner mitLink={false} />}
+      {(hatToken || syncStatus.fehler?.kind === 'speicher') && <SyncBanner mitLink={false} />}
       {!hatToken && <p className="lead">Damit die App deinen Lernstoff laden kann, braucht sie Zugriff auf dein Repo auf GitHub.</p>}
 
       <form onSubmit={pruefen} noValidate>
