@@ -155,6 +155,14 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   createClientRef.current = createClient;
   const nowRef = useRef(now);
   nowRef.current = now;
+  // Nach dem Unmount (z. B. Testende, jsdom abgebaut) darf kein setState mehr passieren.
+  const aktiv = useRef(true);
+  useEffect(() => {
+    aktiv.current = true;
+    return () => {
+      aktiv.current = false;
+    };
+  }, []);
 
   /** Fortschritts-Abgleich nacheinander, nie parallel (sonst Konflikte auf derselben Datei). */
   const fortschrittAbgleichen = useCallback((client: GitHubClient, db: LernDatabase, geraet: string) => {
@@ -190,6 +198,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
           }
         }
         const ev = await ladeEreignisse(db);
+        if (!aktiv.current) return;
         if (inhalt && neueThemen) {
           themenRef.current = neueThemen;
           setIndex(inhalt.index);
@@ -198,7 +207,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
         setEreignisse(ev);
         setSyncStatus((s) => ({ laeuft: false, offline: inhalt ? offline : s.offline, stand: inhalt?.stand ?? s.stand, fehler }));
       } catch (e) {
-        setSyncStatus((s) => ({ ...s, laeuft: false, fehler: alsGitHubError(e) }));
+        if (aktiv.current) setSyncStatus((s) => ({ ...s, laeuft: false, fehler: alsGitHubError(e) }));
       } finally {
         laufenderSync.current = null;
       }
@@ -220,7 +229,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
         ladeEreignisse(db),
       ]);
       const t = idx ? await ladeThemen(db, idx, new Map(), null) : new Map<string, Topic>();
-      if (abgebrochen) return;
+      if (abgebrochen || !aktiv.current) return;
       dbRef.current = db;
       const z = { token: typeof token === 'string' && token ? token : null, geraet: typeof geraet === 'string' && geraet ? geraet : null };
       zugangRef.current = z;
@@ -255,11 +264,13 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     try {
       if ((await getOutbox(db)).length === 0) return;
       const r = await fortschrittAbgleichen(createClientRef.current(token), db, geraet);
-      setEreignisse(await ladeEreignisse(db));
+      const ev = await ladeEreignisse(db);
+      if (!aktiv.current) return;
+      setEreignisse(ev);
       setSyncStatus((s) => ({ ...s, offline: r.offline, fehler: undefined }));
     } catch (err) {
       // Fehler landen nur im syncStatus; die Outbox bleibt für den nächsten Versuch
-      setSyncStatus((s) => ({ ...s, fehler: alsGitHubError(err) }));
+      if (aktiv.current) setSyncStatus((s) => ({ ...s, fehler: alsGitHubError(err) }));
     }
   }, [fortschrittAbgleichen]);
 
@@ -335,7 +346,9 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       const { token, geraet } = zugangRef.current;
       if (!db || !geraet) throw new Error('Noch kein Gerätename eingerichtet.');
       await recordEvent(db, { ...e, geraet, zeit: new Date().toISOString() } as Ereignis);
-      setEreignisse(await ladeEreignisse(db));
+      const ev = await ladeEreignisse(db);
+      if (!aktiv.current) return;
+      setEreignisse(ev);
       if (!token) return;
       // Entprellt: erst nach UPLOAD_PAUSE_MS ohne weitere Bewertung hochladen.
       if (uploadTimer.current !== null) clearTimeout(uploadTimer.current);
@@ -363,7 +376,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     await setSetting(db, 'geraet', g);
     const z = { token: token || zugangRef.current.token, geraet: g };
     zugangRef.current = z;
-    setZugang(z);
+    if (aktiv.current) setZugang(z);
   }, []);
 
   const setzeTheme = useCallback(async (t: Theme) => {

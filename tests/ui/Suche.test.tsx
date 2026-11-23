@@ -1,9 +1,10 @@
 import 'fake-indexeddb/auto';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
-import { openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
+import { getFile, openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
 import { fakeClient, fixtureIndex } from './fakes';
 
 let index: LernIndex;
@@ -17,6 +18,14 @@ beforeEach(async () => {
   db = await openLernDb(`suche-${n++}`);
   await setSetting(db, 'token', 'test-token');
   await setSetting(db, 'geraet', 'pc');
+});
+
+// Hintergrund-Sync zu Ende laufen lassen, bevor die Umgebung abgebaut wird.
+afterEach(async () => {
+  await waitFor(async () => expect(await getFile(db, 'index.json')).toBeTruthy());
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 20));
+  });
 });
 
 async function oeffne() {
