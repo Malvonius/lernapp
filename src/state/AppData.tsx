@@ -4,7 +4,7 @@ import type { IndexSubject, LernIndex, Topic } from '../format/types';
 import { loadTopic, syncContent } from '../lib/contentSync';
 import { getAllEvents, getFile, getOutbox, getSetting, openLernDb, setSetting, type LernDatabase } from '../lib/db';
 import { createGitHubClient, GitHubError, type GitHubClient } from '../lib/github';
-import { dueCards, replayCards, type Ereignis } from '../lib/progress';
+import { dueCards, replayCards, uebungStand, type Ereignis } from '../lib/progress';
 import { normalizeGeraet, recordEvent, syncProgress } from '../lib/progressSync';
 
 export type Theme = 'dunkel' | 'hell';
@@ -29,6 +29,8 @@ export interface AppData {
   index: LernIndex | null;
   topics: (pfad: string) => Topic | null;
   kartenZustand: Map<string, FsrsCard>;
+  /** Letzter Versuch je Übungs-ID (für die Ampel) */
+  uebungsStand: ReturnType<typeof uebungStand>;
   ereignisse: Ereignis[];
   faellig: string[];
   /** Zeitpunkt, auf den `faellig` und die Ampel-Status gerechnet sind (neu nach jedem Abgleich) */
@@ -74,6 +76,11 @@ export function themenPfade(fach: IndexSubject): string[] {
 /** IDs aller aktiven (nicht zurückgezogenen) Karten mit ID. */
 export function aktiveKartenIds(topic: Topic): string[] {
   return topic.karten.flatMap((k) => (k.id && !k.zurueckgezogen ? [k.id] : []));
+}
+
+/** IDs aller aktiven (nicht zurückgezogenen) Übungen mit ID. */
+export function aktiveUebungIds(topic: Topic): string[] {
+  return topic.uebungen.flatMap((u) => (u.id && !u.zurueckgezogen ? [u.id] : []));
 }
 
 async function cachedIndex(db: LernDatabase): Promise<LernIndex | null> {
@@ -307,6 +314,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   }, []);
 
   const kartenZustand = useMemo(() => replayCards(ereignisse), [ereignisse]);
+  const uebungsStand = useMemo(() => uebungStand(ereignisse), [ereignisse]);
   // syncStatus: nach jedem Abgleich neu gegen die aktuelle Zeit rechnen
   const jetzt = useMemo(() => nowRef.current(), [kartenZustand, themen, syncStatus]);
   const faellig = useMemo(() => dueCards(kartenZustand, [...themen.values()].flatMap(aktiveKartenIds), jetzt), [kartenZustand, themen, jetzt]);
@@ -321,6 +329,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       index,
       topics,
       kartenZustand,
+      uebungsStand,
       ereignisse,
       faellig,
       jetzt,
@@ -333,7 +342,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       speichereZugang,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
+    [bereit, zugang, theme, index, topics, kartenZustand, uebungsStand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;

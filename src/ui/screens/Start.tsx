@@ -2,13 +2,13 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { IndexSubject } from '../../format/types';
 import { MAX_NEUE_PRO_SITZUNG } from './Wiederholen';
-import { aktiveKartenIds, themenPfade, useAppData } from '../../state/AppData';
+import { aktiveKartenIds, aktiveUebungIds, themenPfade, useAppData } from '../../state/AppData';
 import { fachStatus, STATUS_REIHE, type Status } from '../../lib/status';
 import { STATUS_LABEL } from '../components/Ampel';
 import { SyncBanner } from '../components/SyncBanner';
 
 function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<string> }) {
-  const { topics, kartenZustand, jetzt } = useAppData();
+  const { topics, kartenZustand, uebungsStand, jetzt } = useAppData();
   const pfade = themenPfade(fach);
   const kartenIds = (pfad: string) => {
     const t = topics(pfad);
@@ -16,7 +16,11 @@ function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<
   };
   const faelligHier = pfade.flatMap(kartenIds).filter((id) => faelligSet.has(id)).length;
   // Anteil der Themen je Status, dieselbe Rechnung wie in der Fachansicht
-  const stati = fachStatus(fach, kartenIds, kartenZustand, jetzt);
+  const uebungIds = (pfad: string) => {
+    const t = topics(pfad);
+    return t ? aktiveUebungIds(t) : [];
+  };
+  const stati = fachStatus(fach, kartenIds, kartenZustand, jetzt, { ids: uebungIds, stand: uebungsStand });
   const anzahl = (s: Status) => stati.filter((x) => x === s).length;
   const gesamt = stati.length || 1;
 

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
 import { openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
+import { recordEvent } from '../../src/lib/progressSync';
 import { fakeClient, fixtureIndex } from './fakes';
 
 let index: LernIndex;
@@ -39,6 +40,16 @@ describe('Fachansicht', () => {
     expect(ableitungen).toHaveTextContent(/4 Übungen/);
     // nichts bewertet → „neu“ mit Textlabel, nicht nur Farbe
     expect(within(ableitungen).getByText('neu')).toBeInTheDocument();
+  });
+
+  it('Übungsergebnisse zählen in die Ampel: alle 4 Übungen richtig, Karten nie bewertet → „wackelt“ statt „neu“', async () => {
+    const zeit = '2026-11-22T10:00:00.000Z';
+    for (const id of ['u-aaa111', 'u-bbb222', 'u-ccc333', 'u-ddd444']) {
+      await recordEvent(db, { art: 'uebung', ziel: id, richtig: true, geraet: 'pc', zeit });
+    }
+    await oeffne(index);
+    const ableitungen = await screen.findByRole('link', { name: /Ableitungen/ });
+    expect(within(ableitungen).getByText('wackelt')).toBeInTheDocument();
   });
 
   it('vorläufige Gliederung wird angezeigt', async () => {

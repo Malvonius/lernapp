@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyCard, fsrs, generatorParameters, Rating, type Card as FsrsCard } from 'ts-fsrs';
 import type { IndexTopic } from '../../src/format/types';
-import { kapitelStatus, themaStatus } from '../../src/lib/status';
+import { fachStatus, kapitelStatus, themaStatus } from '../../src/lib/status';
 
 const t0 = new Date('2026-11-01T10:00:00Z');
 const sched = fsrs(generatorParameters({ enable_fuzz: false }));
@@ -58,5 +58,36 @@ describe('kapitelStatus', () => {
     expect(kapitelStatus(['luecke', 'luecke'])).toBe('luecke');
     expect(kapitelStatus(['fehlerhaft', 'luecke'])).toBe('fehlerhaft');
     expect(kapitelStatus([])).toBe('luecke');
+  });
+});
+
+describe('themaStatus mit Übungen', () => {
+  const stand = (e: Record<string, boolean>) => new Map(Object.entries(e).map(([id, r]) => [id, { zuletztRichtig: r }]));
+
+  it('nur Übungen, keine versucht → neu', () => {
+    expect(themaStatus(thema({ karten: 0 }), [], new Map(), t0, { ids: ['u1', 'u2'], stand: new Map() })).toBe('neu');
+  });
+  it('nur Übungen, alle zuletzt richtig → gruen (nicht ewig „neu“)', () => {
+    expect(themaStatus(thema({ karten: 0 }), [], new Map(), t0, { ids: ['u1', 'u2'], stand: stand({ u1: true, u2: true }) })).toBe('gruen');
+  });
+  it('nur Übungen: zuletzt falsch zählt 0, unversuchte auch (1 von 2 → gelb, 1 von 3 → rot)', () => {
+    expect(themaStatus(thema(), [], new Map(), t0, { ids: ['u1', 'u2'], stand: stand({ u1: true, u2: false }) })).toBe('gelb');
+    expect(themaStatus(thema(), [], new Map(), t0, { ids: ['u1', 'u2', 'u3'], stand: stand({ u1: true }) })).toBe('rot');
+  });
+  it('Karten und Übungen: Mittel aus Abrufquote und Übungsquote', () => {
+    const z = new Map([['a', bewertet()]]);
+    // Karten 1,0 · Übungen 0/2 → 0,5 → gelb
+    expect(themaStatus(thema(), ['a'], z, t0, { ids: ['u1', 'u2'], stand: stand({ u1: false }) })).toBe('gelb');
+    // Karten 1,0 · Übungen 2/2 → 1,0 → gruen
+    expect(themaStatus(thema(), ['a'], z, t0, { ids: ['u1', 'u2'], stand: stand({ u1: true, u2: true }) })).toBe('gruen');
+    // Karten 0 (nie bewertet) · Übungen 2/2 → 0,5 → gelb
+    expect(themaStatus(thema(), ['a', 'b'], new Map(), t0, { ids: ['u1', 'u2'], stand: stand({ u1: true, u2: true }) })).toBe('gelb');
+  });
+  it('Ergebnisse fremder (z. B. zurückgezogener) Übungen zählen nicht', () => {
+    expect(themaStatus(thema(), [], new Map(), t0, { ids: ['u1'], stand: stand({ alt: true }) })).toBe('neu');
+  });
+  it('fachStatus reicht die Übungen durch', () => {
+    const fach = { id: 'f', name: 'F', farbe: '#fff', kapitel: [{ ordner: 'k', titel: 'K', themen: [thema({ karten: 0 })] }], nichtZugeordnet: [] } as never;
+    expect(fachStatus(fach, () => [], new Map(), t0, { ids: () => ['u1'], stand: stand({ u1: true }) })).toEqual(['gruen']);
   });
 });

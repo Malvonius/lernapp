@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { IndexSubject, IndexTopic } from '../../format/types';
-import { aktiveKartenIds, useAppData } from '../../state/AppData';
+import { aktiveKartenIds, aktiveUebungIds, useAppData } from '../../state/AppData';
 import { kapitelStatus, themaStatus, type Status } from '../../lib/status';
 import { Ampel } from '../components/Ampel';
 import { SyncBanner } from '../components/SyncBanner';
@@ -50,10 +50,13 @@ function ThemaZeile({ fachId, t, status }: { fachId: string; t: IndexTopic; stat
 }
 
 function FachInhalt({ fach }: { fach: IndexSubject }) {
-  const { topics, kartenZustand, jetzt } = useAppData();
+  const { topics, kartenZustand, uebungsStand, jetzt } = useAppData();
   const status = (t: IndexTopic) => {
     const topic = t.pfad === null ? null : topics(t.pfad);
-    return themaStatus(t, topic ? aktiveKartenIds(topic) : [], kartenZustand, jetzt);
+    return themaStatus(t, topic ? aktiveKartenIds(topic) : [], kartenZustand, jetzt, {
+      ids: topic ? aktiveUebungIds(topic) : [],
+      stand: uebungsStand,
+    });
   };
 
   const abschnitt = (key: string, titel: string, themen: IndexTopic[], mitAmpel: boolean) => {
