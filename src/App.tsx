@@ -3,6 +3,7 @@ import { AppDataProvider, useAppData, type AppDataProviderProps } from './state/
 import { Fach } from './ui/screens/Fach';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
+import { Pruefung } from './ui/screens/Pruefung';
 import { Start } from './ui/screens/Start';
 import { Thema } from './ui/screens/Thema';
 import { Wiederholen } from './ui/screens/Wiederholen';
@@ -24,7 +25,7 @@ function Routen() {
       <Route path="/thema/:fachId/:themaId" element={<Thema />} />
       {/* key: andere Query (Fach/Thema) = neue Sitzung */}
       <Route path="/wiederholen" element={<Wiederholen key={search} />} />
-      <Route path="/pruefung" element={<Platzhalter titel="Prüfung" />} />
+      <Route path="/pruefung" element={<Pruefung />} />
       <Route path="/suche" element={<Platzhalter titel="Suche" />} />
       <Route path="/einstellungen" element={<Einstellungen />} />
       <Route path="*" element={<Platzhalter titel="Seite nicht gefunden" />} />
