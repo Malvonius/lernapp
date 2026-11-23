@@ -9,14 +9,29 @@ Dieses Repo enthält **nur Code**. Der Lernstoff liegt in einem separaten, priva
 | Teil | Status |
 |---|---|
 | Format-Parser, ID-Vergabe, Index-Bau (`src/format/`, `scripts/build-index.ts`) | fertig, getestet |
-| App-Oberfläche (Lernen, Karten, Prüfung, PWA) | folgt |
+| App (Start, Fach mit Ampel, Thema, Wiederholen mit FSRS, Übungen, Prüfung, Suche, „Frag Bob“, offline, Sync zwischen Geräten) | live unter https://malvonius.github.io/lernapp/ |
+| Einspielen aus der App, Cloud-Routine, OneDrive-Job | folgt (Plan 3) |
+
+## Installieren
+
+- **PC (Edge):** https://malvonius.github.io/lernapp/ öffnen → Menü „…“ → „Apps“ → „Diese Website als App installieren“.
+- **Android (Chrome):** Seite öffnen → Menü „⋮“ → „Zum Startbildschirm hinzufügen“ bzw. „App installieren“.
+- Beim ersten Start: GitHub-Token eintragen (fine-grained, nur Repository `lernstoff`, Berechtigung „Contents: Read and write“) und einen Gerätenamen pro Gerät (z. B. `pc`, `handy`). Das Token bleibt nur auf dem Gerät.
+
+## Wie es funktioniert
+
+- Inhalte: `index.json` und Themen-Dateien werden über die GitHub-API geladen und in IndexedDB zwischengespeichert (offline nutzbar).
+- Fortschritt: jede Bewertung ist ein Ereignis; jedes Gerät schreibt nur seine Datei `_fortschritt/<gerät>.json`. Der Lernstand (FSRS) wird aus den Ereignissen aller Geräte nachgerechnet, deshalb ist er überall gleich. Hochgeladen wird gebündelt (nach 1 Minute Pause, beim Wegwischen, am Sitzungsende, wenn das Netz zurückkommt).
 
 ## Entwicklung
 
 ```powershell
 npm ci
 npm test
+npm run e2e
 ```
+
+Deploy: Push auf `main` → GitHub Action `pages.yml` testet, baut und veröffentlicht auf GitHub Pages.
 
 ## Index bauen
 

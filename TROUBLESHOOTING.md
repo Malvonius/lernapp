@@ -22,3 +22,18 @@ Das Extraktions-Werkzeug braucht für das alte Word-Format LibreOffice (`soffice
 
 ## Formeln fehlen nach dem Umwandeln
 `.docx` und `.odt` laufen über pandoc, das Formeln als LaTeX behält. Wenn trotzdem welche fehlen, sind es meist Bilder von Formeln: Die liegen in `<datei>_bilder/` und müssen angesehen werden.
+
+## App: „Token ungültig oder ohne Zugriff“ / „Token ohne Zugriff auf Malvonius/lernstoff“
+Das Token ist abgelaufen, falsch kopiert oder hat das Repo `lernstoff` nicht unter „Repository access“ ausgewählt (GitHub antwortet dann mit 404). Neues fine-grained Token erstellen (nur `lernstoff`, „Contents: Read and write“) und in der App unter Einstellungen eintragen.
+
+## App: Karte erscheint nicht auf dem anderen Gerät
+Fortschritt wird gebündelt hochgeladen (1 Minute Pause, App wegwischen, Sitzungsende, Netz zurück). Sofort: auf dem lernenden Gerät „Jetzt synchronisieren“, dann auf dem anderen Gerät ebenso. Im Repo `lernstoff` unter `_fortschritt/` muss die Gerätedatei aktualisiert sein. Beide Geräte brauchen **verschiedene** Gerätenamen.
+
+## App: „Fortschrittsdatei auf GitHub ist beschädigt“
+Die eigene `_fortschritt/<gerät>.json` ist kein gültiges JSON mehr (z. B. von Hand bearbeitet). Die App überschreibt sie absichtlich nicht. Datei im Repo reparieren (Git-Historie) — die noch nicht hochgeladenen Bewertungen bleiben im Gerät gespeichert und gehen danach hoch.
+
+## App zeigt alten Stand
+Der Service Worker liefert die App aus dem Cache; nach einem Deploy einmal neu laden (bzw. App schließen und öffnen). Inhalte selbst werden nie vom Service Worker gecacht, sondern bei jedem Sync frisch von GitHub geholt.
+
+## App: „Lokaler Speicher nicht verfügbar“
+Privater Modus oder gesperrte Website-Daten. Normales Browserfenster bzw. installierte App verwenden.
