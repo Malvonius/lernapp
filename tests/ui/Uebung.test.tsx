@@ -130,3 +130,14 @@ describe('Uebung offen', () => {
     expect(record).toHaveBeenCalledWith({ art: 'uebung', ziel: 'u-1', richtig: true });
   });
 });
+
+describe('Uebung aktion als Funktion', () => {
+  it('bekommt Element mit Lösung und eigener Antwort und meldet „beantwortet“ erst nach dem Prüfen', () => {
+    const stand = vi.fn(() => <span>SLOT</span>);
+    render(<Uebung ex={ex({ loesung: 8 })} aktion={stand} />);
+    expect(stand).toHaveBeenLastCalledWith({ beantwortet: false, element: { art: 'uebung', frage: 'Frage $x^2$', antwort: '8', meineAntwort: undefined } });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Prüfen' }));
+    expect(stand).toHaveBeenLastCalledWith({ beantwortet: true, element: { art: 'uebung', frage: 'Frage $x^2$', antwort: '8', meineAntwort: '9' } });
+  });
+});

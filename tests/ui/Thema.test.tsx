@@ -90,3 +90,13 @@ describe('Markdown', () => {
     expect(container.querySelector('.tabelle-scroll table')).not.toBeNull();
   });
 });
+
+describe('Frag Bob im Thema', () => {
+  it('Kopf-Knopf und Knopf je Übung', async () => {
+    await oeffne('mathe-ableitungen');
+    expect(await screen.findByRole('button', { name: 'Frag Bob' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Übungen' }));
+    const liste = await screen.findAllByRole('article');
+    expect(within(liste[0]!).getByRole('button', { name: 'Frag Bob' })).toBeInTheDocument();
+  });
+});

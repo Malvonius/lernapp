@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Card, Exercise, IndexSubject, IndexTopic, Topic } from '../../format/types';
 import { useAppData } from '../../state/AppData';
+import { AskBobButton } from '../components/AskBobButton';
 import { Markdown } from '../components/Markdown';
 import { Mindmap } from '../components/Mindmap';
 import { Uebung } from '../components/Uebung';
@@ -44,20 +45,25 @@ function KartenListe({ karten }: { karten: Card[] }) {
   );
 }
 
-function UebungenListe({ uebungen }: { uebungen: Exercise[] }) {
+function UebungenListe({ uebungen, fach, topic }: { uebungen: Exercise[]; fach: string; topic: Topic }) {
   if (uebungen.length === 0) return <p className="lead">Keine Übungen in diesem Thema.</p>;
   return (
     <ol className="uebungen-liste">
       {uebungen.map((u, i) => (
         <li key={u.id ?? `zeile-${u.zeile}-${i}`}>
-          <Uebung ex={u} />
+          <Uebung
+            ex={u}
+            aktion={({ element }) => (
+              <AskBobButton fach={fach} thema={topic.titel} zusammenfassung={topic.zusammenfassung} element={element} />
+            )}
+          />
         </li>
       ))}
     </ol>
   );
 }
 
-function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; themaId: string; topic: Topic; kopfAktion?: ReactNode }) {
+function ThemaInhalt({ fachId, fachName, themaId, topic, kopfAktion }: { fachId: string; fachName: string; themaId: string; topic: Topic; kopfAktion?: ReactNode }) {
   const aktive = topic.karten.filter((k) => !k.zurueckgezogen);
   const aktiveUebungen = topic.uebungen.filter((u) => !u.zurueckgezogen);
   const reiter: { id: Reiter; label: string }[] = [
@@ -78,6 +84,7 @@ function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; t
         >
           Dieses Thema wiederholen
         </Link>
+        <AskBobButton fach={fachName} thema={topic.titel} zusammenfassung={topic.zusammenfassung} />
         {kopfAktion}
       </div>
       <div role="tablist" aria-label="Themenansicht" className="reiter">
@@ -101,7 +108,7 @@ function ThemaInhalt({ fachId, themaId, topic, kopfAktion }: { fachId: string; t
           (topic.zusammenfassung.trim() ? <Markdown text={topic.zusammenfassung} /> : <p className="lead">Noch keine Zusammenfassung.</p>)}
         {aktiv === 'karten' && <KartenListe karten={aktive} />}
         {aktiv === 'mindmap' && topic.mindmap && <Mindmap root={topic.mindmap} />}
-        {aktiv === 'uebungen' && <UebungenListe uebungen={aktiveUebungen} />}
+        {aktiv === 'uebungen' && <UebungenListe uebungen={aktiveUebungen} fach={fachName} topic={topic} />}
       </div>
     </>
   );
@@ -121,7 +128,7 @@ export function Thema({ kopfAktion }: { kopfAktion?: ReactNode } = {}) {
   return (
     <section className="screen" style={fach ? ({ '--fach': fach.farbe } as CSSProperties) : undefined}>
       {topic && fachId && themaId ? (
-        <ThemaInhalt key={themaId} fachId={fachId} themaId={themaId} topic={topic} kopfAktion={kopfAktion} />
+        <ThemaInhalt key={themaId} fachId={fachId} fachName={fach?.name ?? fachId} themaId={themaId} topic={topic} kopfAktion={kopfAktion} />
       ) : eintrag ? (
         <p className="lead" aria-busy="true">Thema wird geladen …</p>
       ) : index ? (

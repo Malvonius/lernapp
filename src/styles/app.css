@@ -395,3 +395,9 @@ main { flex: 1; display: flex; flex-direction: column; }
 .pruefung__fuellung { height: 100%; background: var(--fach); }
 .pruefung__falsch li { border: 1px solid var(--c-line); border-radius: var(--r-panel); background: var(--c-surface); padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-2); }
 .pruefung__falsch a { min-height: var(--touch); display: inline-flex; align-items: center; }
+
+/* Frag Bob */
+.askbob { display: grid; gap: var(--sp-2); width: 100%; }
+.askbob__feld { width: 100%; padding: var(--sp-2) var(--sp-3); font: inherit; color: var(--c-text); background: var(--c-bg); border: 1px solid var(--c-line); border-radius: var(--r-panel); }
+.askbob__zeile { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.askbob__meldung { margin: 0; color: var(--c-muted); font-size: var(--fs-sm); }

@@ -1,8 +1,15 @@
 import { useRef, useState, type ReactNode } from 'react';
 import type { Exercise } from '../../format/types';
+import type { AskBobElement } from '../../lib/askBob';
 import { pruefeEingabe, pruefeMc } from '../../lib/check';
 import { useAppData } from '../../state/AppData';
 import { Markdown } from './Markdown';
+
+/** Zustand der Übung für den Aktions-Slot: ob sie beantwortet ist und das Element für „Frag Bob“ */
+export interface UebungStand {
+  beantwortet: boolean;
+  element: AskBobElement;
+}
 
 export interface UebungProps {
   ex: Exercise;
@@ -10,8 +17,8 @@ export interface UebungProps {
   onErgebnis?: (richtig: boolean) => void;
   /** false: `record` wird nicht aufgerufen (der Aufrufer steuert die Aufzeichnung). Standard: true */
   aufzeichnen?: boolean;
-  /** Slot für Zusatzaktionen, z. B. „Frag Bob“ */
-  aktion?: ReactNode;
+  /** Slot für Zusatzaktionen, z. B. „Frag Bob“; als Funktion bekommt er den aktuellen Stand */
+  aktion?: ReactNode | ((stand: UebungStand) => ReactNode);
 }
 
 function Urteil({ richtig }: { richtig: boolean }) {
@@ -64,6 +71,21 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungProp
   const schritte = ex.schritte ?? [];
   const optionen = ex.optionen ?? [];
   const richtige = new Set(ex.richtig ?? []);
+
+  const loesungText = (): string | undefined => {
+    if (ex.typ === 'eingabe') return ex.loesung === undefined ? undefined : String(ex.loesung);
+    if (ex.typ === 'offen') return ex.musterloesung;
+    if (ex.typ === 'schritte') return schritte.length ? schritte.map((s, i) => `${i + 1}. ${s}`).join('\n') : undefined;
+    return optionen.filter((_, i) => richtige.has(i)).join('; ') || undefined;
+  };
+  const meineAntwort = (): string | undefined => {
+    const t = ex.typ === 'eingabe' ? eingabe : ex.typ === 'offen' ? notiz : ex.typ === 'mc' ? gewaehlt.map((i) => optionen[i]).join('; ') : '';
+    return t.trim() || undefined;
+  };
+  const aktionInhalt =
+    typeof aktion === 'function'
+      ? aktion({ beantwortet: ergebnis !== null, element: { art: 'uebung', frage: ex.frage, antwort: loesungText(), meineAntwort: meineAntwort() } })
+      : aktion;
 
   return (
     <article className="uebung">
@@ -181,7 +203,7 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungProp
 
       {speicherFehler && <p className="uebung__fehler" role="alert">Ergebnis konnte nicht gespeichert werden</p>}
 
-      {aktion ? <div className="uebung__aktion">{aktion}</div> : null}
+      {aktionInhalt ? <div className="uebung__aktion">{aktionInhalt}</div> : null}
     </article>
   );
 }

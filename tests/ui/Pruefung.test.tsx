@@ -106,3 +106,34 @@ describe('Prüfung', () => {
     await waitFor(async () => expect((await getAllEvents(db)).find((e) => e.art === 'pruefung')).toMatchObject({ punkte: 0, max: 6 }));
   });
 });
+
+describe('Frag Bob in der Prüfung', () => {
+  it('nur bei Übungen und erst nach der Antwort', async () => {
+    await oeffneUndWaehle();
+    // bis zur ersten Übung durcharbeiten (Karten werden übersprungen)
+    for (let i = 0; i < 10; i++) {
+      await waitFor(() => {
+        if (!document.querySelector('.lernkarte, .uebung')) throw new Error('warten');
+      });
+      if (document.querySelector('.uebung')) break;
+      klick('Antwort zeigen');
+      klick('Gewusst');
+    }
+    expect(document.querySelector('.uebung')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Frag Bob' })).toBeNull();
+    if (screen.queryByLabelText('Deine Antwort')) {
+      fireEvent.change(screen.getByLabelText('Deine Antwort'), { target: { value: '12' } });
+      klick('Prüfen');
+    } else if (screen.queryByRole('button', { name: 'Nächsten Schritt zeigen' })) {
+      for (let s = 0; s < 3; s++) klick('Nächsten Schritt zeigen');
+      klick('Hab ich gekonnt');
+    } else if (screen.queryAllByRole('checkbox').length > 0) {
+      fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+      klick('Prüfen');
+    } else {
+      klick('Musterlösung zeigen');
+      klick('Hab ich gekonnt');
+    }
+    expect(await screen.findByRole('button', { name: 'Frag Bob' })).toBeInTheDocument();
+  });
+});

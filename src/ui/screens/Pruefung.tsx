@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Card, Exercise, IndexSubject, Topic } from '../../format/types';
 import { bauePruefung, werteAus, type Aufgabe, type Auswertung, type PruefungsThema } from '../../lib/exam';
 import { useAppData } from '../../state/AppData';
+import { AskBobButton } from '../components/AskBobButton';
 import { Markdown } from '../components/Markdown';
 import { Uebung } from '../components/Uebung';
 
@@ -13,6 +14,7 @@ interface Quelle {
   karte?: Card;
   uebung?: Exercise;
   thema: string;
+  topic: Topic;
 }
 
 interface Lauf {
@@ -105,8 +107,8 @@ export function Pruefung() {
     const aufgaben = bauePruefung(eingabe, anzahl, Math.random);
     const quellen = new Map<string, Quelle>();
     for (const { topic } of eingabe) {
-      for (const k of topic.karten) if (k.id) quellen.set(k.id, { karte: k, thema: topic.id });
-      for (const u of topic.uebungen) if (u.id) quellen.set(u.id, { uebung: u, thema: topic.id });
+      for (const k of topic.karten) if (k.id) quellen.set(k.id, { karte: k, thema: topic.id, topic });
+      for (const u of topic.uebungen) if (u.id) quellen.set(u.id, { uebung: u, thema: topic.id, topic });
     }
     ergebnisse.current = new Map();
     beendet.current = false;
@@ -334,6 +336,12 @@ export function Pruefung() {
             <Uebung
               ex={q.uebung}
               aufzeichnen
+              // Hilfe erst nach der Antwort, nicht während der Prüfung
+              aktion={({ beantwortet, element }) =>
+                beantwortet && fach ? (
+                  <AskBobButton fach={fach.name} thema={q.topic.titel} zusammenfassung={q.topic.zusammenfassung} element={element} />
+                ) : null
+              }
               onErgebnis={(richtig) => {
                 ergebnisse.current.set(a.id, richtig);
                 setUebungFertig(true);

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'r
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../state/AppData';
 import { formatIntervall, vorschau, type Bewertung } from '../../lib/progress';
+import { AskBobButton } from '../components/AskBobButton';
 import { BEWERTUNGEN, Lernkarte } from '../components/Lernkarte';
 
 export const MAX_NEUE_PRO_SITZUNG = 20;
@@ -11,10 +12,13 @@ interface KartenDaten {
   frage: string;
   antwort: string;
   farbe: string;
+  fach: string;
+  thema: string;
+  zusammenfassung: string;
 }
 
 export interface WiederholenProps {
-  /** Slot auf jeder Karte (Task 12: „Frag Bob“) */
+  /** Ersetzt den Standard-Knopf „Frag Bob“ auf jeder Karte */
   kartenAktion?: (karte: { id: string; frage: string; antwort: string }) => ReactNode;
 }
 
@@ -31,8 +35,19 @@ export function Wiederholen({ kartenAktion }: WiederholenProps = {}) {
       if (fachId && f.id !== fachId) continue;
       for (const t of [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet]) {
         if (!t.pfad || (themaId && t.id !== themaId)) continue;
-        for (const k of topics(t.pfad)?.karten ?? []) {
-          if (k.id && !k.zurueckgezogen) m.set(k.id, { id: k.id, frage: k.frage, antwort: k.antwort, farbe: f.farbe });
+        const topic = topics(t.pfad);
+        for (const k of topic?.karten ?? []) {
+          if (k.id && !k.zurueckgezogen) {
+            m.set(k.id, {
+              id: k.id,
+              frage: k.frage,
+              antwort: k.antwort,
+              farbe: f.farbe,
+              fach: f.name,
+              thema: topic?.titel ?? t.titel,
+              zusammenfassung: topic?.zusammenfassung ?? '',
+            });
+          }
         }
       }
     }
@@ -138,7 +153,19 @@ export function Wiederholen({ kartenAktion }: WiederholenProps = {}) {
         intervalle={intervalle}
         onAufdecken={() => setAufgedeckt(true)}
         onBewerten={(b) => void bewerten(b)}
-        aktion={kartenAktion?.({ id: aktuell.id, frage: aktuell.frage, antwort: aktuell.antwort })}
+        aktion={
+          kartenAktion ? (
+            kartenAktion({ id: aktuell.id, frage: aktuell.frage, antwort: aktuell.antwort })
+          ) : (
+            <AskBobButton
+              key={aktuell.id}
+              fach={aktuell.fach}
+              thema={aktuell.thema}
+              zusammenfassung={aktuell.zusammenfassung}
+              element={{ art: 'karte', frage: aktuell.frage, antwort: aktuell.antwort }}
+            />
+          )
+        }
       />
       {fehler && (
         <p className="banner banner--fehler" role="alert">

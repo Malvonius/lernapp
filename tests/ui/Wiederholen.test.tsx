@@ -132,3 +132,11 @@ describe('formatIntervall', () => {
     expect(formatIntervall(400 * 24 * 60 * min)).toBe('1 Jahr');
   });
 });
+
+describe('Frag Bob beim Wiederholen', () => {
+  it('jede Karte hat den Knopf', async () => {
+    await oeffne();
+    await screen.findByText(/Was ist die Ableitung von/);
+    expect(screen.getByRole('button', { name: 'Frag Bob' })).toBeInTheDocument();
+  });
+});
