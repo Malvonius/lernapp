@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
@@ -168,9 +168,72 @@ describe('useAppData().record', () => {
     knopf.click();
     expect(await screen.findByText('fällig: 2')).toBeInTheDocument();
     expect(screen.getByText('ereignisse: 1')).toBeInTheDocument();
-    await waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
+    // hochgeladen wird erst nach 60 s ohne weitere Bewertung (siehe „Hochladen entprellt“)
+    expect(state.puts).toEqual([]);
     const [e] = await getAllEvents(db);
     expect(e).toMatchObject({ art: 'karte', ziel: 'k-a1b2c3', geraet: 'pc', bewertung: 3 });
     expect(new Date(e!.zeit).toISOString()).toBe(e!.zeit);
+  });
+});
+
+describe('Hochladen entprellt', () => {
+  afterEach(() => vi.useRealTimers());
+
+  async function bereit() {
+    await mitZugang();
+    const f = fakeClient(index);
+    let indexAbrufe = 0;
+    const client = { ...f.client, getRaw: (p: string, e?: string) => ((p === 'index.json' && indexAbrufe++), f.client.getRaw(p, e)) };
+    const { AppDataProvider } = await import('../../src/state/AppData');
+    render(
+      <AppDataProvider db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')}>
+        <Bewerter />
+      </AppDataProvider>,
+    );
+    const knopf = await screen.findByRole('button', { name: 'bewerten' });
+    await waitFor(() => expect(knopf).toBeEnabled());
+    await waitFor(() => expect(indexAbrufe).toBe(1));
+    return { knopf, state: f.state, indexAbrufe: () => indexAbrufe };
+  }
+
+  it('5 schnelle Bewertungen: sofort kein PUT, nach 60 s Leerlauf genau einer', async () => {
+    const { knopf, state } = await bereit();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    for (let i = 0; i < 5; i++) {
+      knopf.click();
+      await vi.waitFor(async () => expect((await getAllEvents(db)).length).toBeGreaterThan(0));
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    expect(state.puts).toEqual([]);
+    await vi.advanceTimersByTimeAsync(54_000); // 59 s nach der letzten Bewertung
+    expect(state.puts).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
+  });
+
+  it('App in den Hintergrund (visibilitychange → hidden) lädt sofort hoch', async () => {
+    const { knopf, state } = await bereit();
+    knopf.click();
+    await screen.findByText('ereignisse: 1');
+    expect(state.puts).toEqual([]);
+    const sichtbar = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
+    sichtbar.mockRestore();
+  });
+
+  it('online-Event löst einen Abgleich aus', async () => {
+    const { indexAbrufe } = await bereit();
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => expect(indexAbrufe()).toBe(2));
+  });
+
+  it('nichts ausstehend: hidden macht keine Anfrage', async () => {
+    const { state } = await bereit();
+    const sichtbar = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(state.puts).toEqual([]);
+    sichtbar.mockRestore();
   });
 });

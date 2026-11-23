@@ -17,16 +17,29 @@ class FakeRepo implements GitHubClient {
   offline = false;
   beforePut: (() => void) | null = null;
   puts = 0;
+  /** Pfade, deren Inhalt per getRaw tatsächlich übertragen wurde (nicht 304) */
+  rawGelesen: string[] = [];
+  rawEtags: (string | undefined)[] = [];
+  getFileAufrufe = 0;
   private chk() {
     if (this.offline) throw new GitHubError('network');
   }
   set(path: string, text: string) {
     this.files.set(path, { text, sha: `sha${++this.counter}` });
   }
-  async getRaw(): Promise<never> { throw new Error('unused'); }
+  async getRaw(path: string, etag?: string) {
+    this.chk();
+    this.rawEtags.push(etag);
+    const f = this.files.get(path);
+    if (!f) throw new GitHubError('notfound', 404);
+    if (etag === `"${f.sha}"`) return 'unchanged' as const;
+    this.rawGelesen.push(path);
+    return { text: f.text, etag: `"${f.sha}"` };
+  }
   async testAccess() {}
   async getFile(path: string) {
     this.chk();
+    this.getFileAufrufe++;
     const f = this.files.get(path);
     return f ? { ...f } : null;
   }
@@ -173,6 +186,54 @@ describe('syncProgress', () => {
     repo.set('_fortschritt/handy.json', datei('handy', [gut, ...kaputt]));
     await syncProgress(repo, db, 'pc');
     expect((await getAllEvents(db)).map((e) => e.ziel)).toEqual(['ok']);
+  });
+
+  it('eigene Datei wird kompakt (ohne Einrückung) geschrieben', async () => {
+    const repo = new FakeRepo();
+    await recordEvent(db, ev('pc', '2026-11-22T10:00:00.000Z'));
+    await syncProgress(repo, db, 'pc');
+    const text = repo.files.get('_fortschritt/pc.json')!.text;
+    expect(text).not.toContain(String.fromCharCode(10));
+    expect(JSON.parse(text)).toMatchObject({ version: 1, geraet: 'pc' });
+  });
+
+  it('fremde Datei mit unverändertem ETag wird nicht erneut übertragen und geparst', async () => {
+    const repo = new FakeRepo();
+    repo.set('_fortschritt/handy.json', datei('handy', [ev('handy', '2026-11-21T10:00:00.000Z')]));
+    await syncProgress(repo, db, 'pc');
+    expect(repo.rawGelesen).toEqual(['_fortschritt/handy.json']);
+    await db.clear('events');
+    repo.rawGelesen = [];
+    repo.rawEtags = [];
+    await syncProgress(repo, db, 'pc');
+    expect(repo.rawEtags).toEqual([`"${repo.files.get('_fortschritt/handy.json')!.sha}"`]);
+    expect(repo.rawGelesen).toEqual([]);
+    expect(await getAllEvents(db)).toEqual([]); // nicht neu geparst
+    // geänderte Datei → neuer ETag → wieder gelesen
+    repo.set('_fortschritt/handy.json', datei('handy', [ev('handy', '2026-11-21T10:00:00.000Z'), ev('handy', '2026-11-21T11:00:00.000Z', 'k2')]));
+    await syncProgress(repo, db, 'pc');
+    expect(repo.rawGelesen).toEqual(['_fortschritt/handy.json']);
+    expect(await getAllEvents(db)).toHaveLength(2);
+  });
+
+  it('fremde Datei zwischen Listing und Lesen gelöscht (404): übersprungen', async () => {
+    const repo = new FakeRepo();
+    repo.set('_fortschritt/weg.json', datei('weg', []));
+    const list = repo.listDir.bind(repo);
+    repo.listDir = async (p) => { const l = await list(p); repo.files.delete('_fortschritt/weg.json'); return l; };
+    await expect(syncProgress(repo, db, 'pc')).resolves.toEqual({ hochgeladen: 0, offline: false });
+  });
+
+  it('leere Outbox: eigene Datei nur per ETag gelesen, kein getFile, kein PUT', async () => {
+    const repo = new FakeRepo();
+    repo.set('_fortschritt/pc.json', datei('pc', [ev('pc', '2026-11-20T10:00:00.000Z', 'alt')]));
+    await syncProgress(repo, db, 'pc');
+    expect((await getAllEvents(db)).map((e) => e.ziel)).toEqual(['alt']); // z. B. nach Neuinstallation
+    repo.rawGelesen = [];
+    await syncProgress(repo, db, 'pc');
+    expect(repo.rawGelesen).toEqual([]);
+    expect(repo.getFileAufrufe).toBe(0);
+    expect(repo.puts).toBe(0);
   });
 
   it('leerer Gerätename: normaler Error', async () => {

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
 import { getAllEvents, openLernDb, type LernDatabase, setSetting } from '../../src/lib/db';
@@ -22,8 +22,9 @@ beforeEach(async () => {
 
 async function oeffne(hash = '#/wiederholen') {
   window.location.hash = hash;
-  const { client } = fakeClient(index);
-  render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+  const f = fakeClient(index);
+  render(<App db={db} createClient={() => f.client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+  return f.state;
 }
 
 const aufdecken = () => fireEvent.click(screen.getByRole('button', { name: 'Antwort zeigen' }));
@@ -138,5 +139,30 @@ describe('Frag Bob beim Wiederholen', () => {
     await oeffne();
     await screen.findByText(/Was ist die Ableitung von/);
     expect(screen.getByRole('button', { name: 'Frag Bob' })).toBeInTheDocument();
+  });
+});
+
+describe('Wiederholen: Hochladen', () => {
+  it('beim Verlassen der Sitzung werden die Bewertungen sofort hochgeladen', async () => {
+    const state = await oeffne();
+    await screen.findByText(/Was ist die Ableitung von/);
+    aufdecken();
+    bewerten(/^Gut/);
+    await screen.findByText(/Wie lautet die Kettenregel/);
+    expect(state.puts).toEqual([]);
+    fireEvent.click(screen.getByRole('link', { name: 'Lernapp' }));
+    await waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
+  });
+
+  it('am Ende der Sitzung („Fertig“) werden die Bewertungen sofort hochgeladen', async () => {
+    const state = await oeffne();
+    for (let i = 0; i < 3; i++) {
+      await screen.findByRole('button', { name: 'Antwort zeigen' });
+      aufdecken();
+      bewerten(/^Einfach/);
+      await waitFor(async () => expect(await getAllEvents(db)).toHaveLength(i + 1));
+    }
+    expect(await screen.findByRole('heading', { name: 'Fertig' })).toBeInTheDocument();
+    await waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
   });
 });

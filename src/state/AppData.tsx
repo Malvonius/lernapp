@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Card as FsrsCard } from 'ts-fsrs';
 import type { IndexSubject, LernIndex, Topic } from '../format/types';
 import { loadTopic, syncContent } from '../lib/contentSync';
-import { getAllEvents, getFile, getSetting, openLernDb, setSetting, type LernDatabase } from '../lib/db';
+import { getAllEvents, getFile, getOutbox, getSetting, openLernDb, setSetting, type LernDatabase } from '../lib/db';
 import { createGitHubClient, GitHubError, type GitHubClient } from '../lib/github';
 import { dueCards, replayCards, type Ereignis } from '../lib/progress';
 import { normalizeGeraet, recordEvent, syncProgress } from '../lib/progressSync';
@@ -35,7 +35,10 @@ export interface AppData {
   jetzt: Date;
   syncStatus: SyncStatus;
   sync(): Promise<void>;
+  /** Speichert lokal; hochgeladen wird gebündelt (nach UPLOAD_PAUSE_MS ohne weitere Bewertung, im Hintergrund, am Sitzungsende). */
   record(e: NeuesEreignis): Promise<void>;
+  /** Lädt ausstehende Ereignisse sofort hoch (z. B. am Ende einer Sitzung); ohne ausstehende nichts. */
+  hochladen(): Promise<void>;
   /** Prüft ein (neues oder das gespeicherte) Token; wirft GitHubError. */
   pruefeVerbindung(token?: string): Promise<void>;
   speichereZugang(z: { token?: string; geraet: string }): Promise<void>;
@@ -99,6 +102,9 @@ async function ladeThemen(db: LernDatabase, index: LernIndex, alt: Map<string, T
   return neu;
 }
 
+/** Leerlauf nach der letzten Bewertung, bevor hochgeladen wird: jeder Upload liest und schreibt die ganze Fortschrittsdatei. */
+export const UPLOAD_PAUSE_MS = 60_000;
+
 const alsGitHubError = (e: unknown) => (e instanceof GitHubError ? e : new GitHubError('other'));
 const ladeEreignisse = async (db: LernDatabase) => (await getAllEvents(db)) as Ereignis[];
 
@@ -117,6 +123,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const themenRef = useRef(themen);
   const laufenderSync = useRef<Promise<void> | null>(null);
   const fortschrittKette = useRef<Promise<unknown>>(Promise.resolve());
+  const uploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const createClientRef = useRef(createClient);
   createClientRef.current = createClient;
   const nowRef = useRef(now);
@@ -210,14 +217,47 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     };
   }, [dbProp, sync]);
 
-  // Wieder sichtbar → abgleichen.
+  const hochladen = useCallback(async () => {
+    if (uploadTimer.current !== null) {
+      clearTimeout(uploadTimer.current);
+      uploadTimer.current = null;
+    }
+    const db = dbRef.current;
+    const { token, geraet } = zugangRef.current;
+    if (!db || !token || !geraet) return;
+    try {
+      if ((await getOutbox(db)).length === 0) return;
+      const r = await fortschrittAbgleichen(createClientRef.current(token), db, geraet);
+      setEreignisse(await ladeEreignisse(db));
+      setSyncStatus((s) => ({ ...s, offline: r.offline, fehler: undefined }));
+    } catch (err) {
+      // Fehler landen nur im syncStatus; die Outbox bleibt für den nächsten Versuch
+      setSyncStatus((s) => ({ ...s, fehler: alsGitHubError(err) }));
+    }
+  }, [fortschrittAbgleichen]);
+
+  // Wieder sichtbar → abgleichen; in den Hintergrund → Ausstehendes hochladen (die App kann danach beendet werden).
+  // Wieder online → abgleichen.
   useEffect(() => {
     const beiSichtbar = () => {
       if (document.visibilityState === 'visible') void sync();
+      else if (document.visibilityState === 'hidden') void hochladen();
     };
+    const beiOnline = () => void sync();
     document.addEventListener('visibilitychange', beiSichtbar);
-    return () => document.removeEventListener('visibilitychange', beiSichtbar);
-  }, [sync]);
+    window.addEventListener('online', beiOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', beiSichtbar);
+      window.removeEventListener('online', beiOnline);
+    };
+  }, [sync, hochladen]);
+
+  useEffect(
+    () => () => {
+      if (uploadTimer.current !== null) clearTimeout(uploadTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const html = document.documentElement;
@@ -233,16 +273,11 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       await recordEvent(db, { ...e, geraet, zeit: new Date().toISOString() } as Ereignis);
       setEreignisse(await ladeEreignisse(db));
       if (!token) return;
-      // Hochladen im Hintergrund: Fehler landen nur im syncStatus.
-      void fortschrittAbgleichen(createClientRef.current(token), db, geraet).then(
-        async (r) => {
-          setEreignisse(await ladeEreignisse(db));
-          setSyncStatus((s) => ({ ...s, offline: r.offline, fehler: undefined }));
-        },
-        (err) => setSyncStatus((s) => ({ ...s, fehler: alsGitHubError(err) })),
-      );
+      // Entprellt: erst nach UPLOAD_PAUSE_MS ohne weitere Bewertung hochladen.
+      if (uploadTimer.current !== null) clearTimeout(uploadTimer.current);
+      uploadTimer.current = setTimeout(() => void hochladen(), UPLOAD_PAUSE_MS);
     },
-    [fortschrittAbgleichen],
+    [hochladen],
   );
 
   const pruefeVerbindung = useCallback(async (token?: string) => {
@@ -288,11 +323,12 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       syncStatus,
       sync,
       record,
+      hochladen,
       pruefeVerbindung,
       speichereZugang,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, syncStatus, sync, record, pruefeVerbindung, speichereZugang, setzeTheme],
+    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;

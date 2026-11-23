@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../state/AppData';
 import { formatIntervall, vorschau, type Bewertung } from '../../lib/progress';
@@ -23,7 +23,7 @@ export interface WiederholenProps {
 }
 
 export function Wiederholen({ kartenAktion }: WiederholenProps = {}) {
-  const { index, topics, kartenZustand, jetzt, record } = useAppData();
+  const { index, topics, kartenZustand, jetzt, record, hochladen } = useAppData();
   const [params] = useSearchParams();
   const fachId = params.get('fach');
   const themaId = params.get('thema');
@@ -61,6 +61,15 @@ export function Wiederholen({ kartenAktion }: WiederholenProps = {}) {
   const [aufgedeckt, setAufgedeckt] = useState(false);
   const [fehler, setFehler] = useState(false);
   const beschaeftigt = useRef(false);
+
+  // Sitzung verlassen oder beendet: Bewertungen gleich hochladen statt auf den Leerlauf-Timer zu warten.
+  const hochladenRef = useRef(hochladen);
+  hochladenRef.current = hochladen;
+  useEffect(() => () => void hochladenRef.current(), []);
+  const fertig = queue !== null && queue.length === 0;
+  useEffect(() => {
+    if (fertig) void hochladenRef.current();
+  }, [fertig]);
 
   if (queue === null && index) {
     const ids = [...karten.keys()];
