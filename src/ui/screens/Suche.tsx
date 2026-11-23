@@ -69,7 +69,7 @@ export function Suche() {
             <li key={`${t.pfad}-${t.wo}-${i}`}>
               <Link to={ziele.get(t.pfad) ?? '/'} className="suche-treffer">
                 <span className="suche-treffer__kopf">
-                  {t.titel} <span className="suche-treffer__meta">· {t.fachName} · {WO_LABEL[t.wo]}</span>
+                  <Hervorgehoben text={t.titel} q={q} /> <span className="suche-treffer__meta">· {t.fachName} · {WO_LABEL[t.wo]}</span>
                 </span>
                 {t.wo !== 'titel' && (
                   <span className="suche-treffer__text">

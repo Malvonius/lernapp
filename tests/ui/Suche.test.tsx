@@ -36,6 +36,14 @@ describe('Suche', () => {
     expect(document.querySelector('mark')?.textContent?.toLowerCase()).toBe('kettenregel');
   });
 
+  it('Treffer im Titel werden im Titel hervorgehoben', async () => {
+    const feld = await oeffne();
+    fireEvent.change(feld, { target: { value: 'ableit' } });
+    const link = await screen.findByRole('link', { name: /Ableitungen · .* · Titel/ });
+    const mark = link.querySelector('.suche-treffer__kopf mark');
+    expect(mark?.textContent?.toLowerCase()).toBe('ableit');
+  });
+
   it('ohne Treffer: Hinweis; Markup in der Eingabe wird nie als HTML gerendert', async () => {
     const feld = await oeffne();
     fireEvent.change(feld, { target: { value: '<img src=x onerror=alert(1)>' } });
