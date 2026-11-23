@@ -18,12 +18,13 @@ beforeAll(async () => {
 });
 
 /** Fake-Client: liefert den aktuellen Index (mit ETag) und die Fixture-Dateien. */
-function fake(state: { index: LernIndex; etag: string; fail?: GitHubError; contents?: Record<string, string> }) {
+function fake(state: { index: LernIndex; etag: string; fail?: GitHubError; contents?: Record<string, string>; failPfad?: Record<string, Error> }) {
   const calls: string[] = [];
   const client: GitHubClient = {
     async getRaw(path, etag) {
       calls.push(path);
       if (state.fail) throw state.fail;
+      if (state.failPfad?.[path]) throw state.failPfad[path];
       if (path === 'index.json') {
         if (etag === state.etag) return 'unchanged';
         return { text: JSON.stringify(state.index), etag: state.etag };
@@ -135,6 +136,50 @@ describe('syncContent', () => {
     await db.delete('files', p);
     const r = await syncContent(f.client, db);
     expect(r.geaendert).toEqual([p]);
+  });
+});
+
+describe('syncContent: Fehler bei einzelnen Themen', () => {
+  const themaVon = (i: LernIndex, pfad: string) =>
+    i.faecher.flatMap((f) => [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet]).find((t) => t.pfad === pfad)!;
+
+  it('ein kaputtes Thema blockiert nicht den Rest: andere geladen, dieses als fehlerhaft markiert', async () => {
+    const [kaputt, ...rest] = topicPaths(baseIndex);
+    const f = fake({ index: baseIndex, etag: '"e1"', failPfad: { [kaputt!]: new GitHubError('other', 500) } });
+    const r = await syncContent(f.client, db);
+    expect(r.fehlgeschlagen).toEqual([kaputt]);
+    expect([...r.geaendert].sort()).toEqual([...rest].sort());
+    expect(themaVon(r.index, kaputt!).fehler.length).toBeGreaterThan(0);
+    for (const p of rest) expect(themaVon(r.index, p).fehler).toEqual([]);
+    expect(await getFile(db, kaputt!)).toBeUndefined();
+    // beim nächsten Abgleich (Index unverändert) wird das fehlende Thema nachgeladen
+    const g = fake({ index: baseIndex, etag: '"e1"' });
+    const r2 = await syncContent(g.client, db);
+    expect(r2.geaendert).toEqual([kaputt]);
+    expect(r2.fehlgeschlagen).toEqual([]);
+  });
+
+  it('kaputtes Thema mit älterer Cache-Kopie: alte Kopie bleibt nutzbar, nicht als fehlerhaft markiert', async () => {
+    const state: Parameters<typeof fake>[0] = { index: baseIndex, etag: '"e1"' };
+    await syncContent(fake(state).client, db);
+    const next: LernIndex = structuredClone(baseIndex);
+    const p = topicPaths(next)[0]!;
+    themaVon(next, p).hash = 'neu';
+    const f = fake({ index: next, etag: '"e2"', failPfad: { [p]: new GitHubError('notfound', 404) } });
+    const r = await syncContent(f.client, db);
+    expect(r.fehlgeschlagen).toEqual([p]);
+    expect(themaVon(r.index, p).fehler).toEqual([]);
+    expect(await loadTopic(db, p)).not.toBeNull();
+  });
+
+  it('auth, ratelimit und network bei einem Thema brechen weiterhin ab', async () => {
+    const p = topicPaths(baseIndex)[0]!;
+    for (const kind of ['auth', 'ratelimit'] as const) {
+      const f = fake({ index: baseIndex, etag: '"e1"', failPfad: { [p]: new GitHubError(kind) } });
+      await expect(syncContent(f.client, await openLernDb(`k-${n++}`))).rejects.toMatchObject({ kind });
+    }
+    const f = fake({ index: baseIndex, etag: '"e1"', failPfad: { [p]: new GitHubError('network') } });
+    await expect(syncContent(f.client, await openLernDb(`k-${n++}`))).rejects.toMatchObject({ kind: 'network' });
   });
 });
 

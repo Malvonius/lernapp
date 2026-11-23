@@ -1,21 +1,27 @@
 import { parseTopic } from '../format/parseTopic';
-import type { LernIndex, Topic } from '../format/types';
+import type { IndexTopic, LernIndex, Topic } from '../format/types';
 import { deleteFile, getFile, getMeta, putFile, setMeta, type LernDatabase } from './db';
 import { GitHubError, type GitHubClient } from './github';
 
 export interface SyncResult {
   index: LernIndex;
   geaendert: string[];
+  /** Themen, deren Download diesmal scheiterte (beim nächsten Abgleich wird es erneut versucht) */
+  fehlgeschlagen: string[];
   offline: boolean;
   stand: string;
 }
 
 const INDEX_PATH = 'index.json';
+/** Markierung im Index für ein Thema ohne nutzbare Datei: die Ampel zeigt es als „fehlerhaft“. */
+export const LADEFEHLER = 'Datei konnte nicht geladen werden';
+/** Diese Fehler betreffen jede Anfrage gleich: weitermachen wäre sinnlos. */
+const ABBRUCH = new Set(['auth', 'ratelimit', 'network']);
 
-function topicEntries(index: LernIndex): { pfad: string; hash: string | null }[] {
+function topicEntries(index: LernIndex): { pfad: string; hash: string | null; thema: IndexTopic }[] {
   return index.faecher
     .flatMap((f) => [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet])
-    .flatMap((t) => (t.pfad === null ? [] : [{ pfad: t.pfad, hash: t.hash }]));
+    .flatMap((t) => (t.pfad === null ? [] : [{ pfad: t.pfad, hash: t.hash, thema: t }]));
 }
 
 async function cachedIndex(db: LernDatabase): Promise<LernIndex | null> {
@@ -50,14 +56,23 @@ export async function syncContent(client: GitHubClient, db: LernDatabase): Promi
 
     const entries = topicEntries(index);
     const geaendert: string[] = [];
-    for (const { pfad, hash } of entries) {
+    const fehlgeschlagen: string[] = [];
+    for (const { pfad, hash, thema } of entries) {
       const have = await getFile(db, pfad);
       if (have && hash !== null && have.hash === hash) continue;
       if (have && hash === null && have.hash === '') continue;
-      const raw = await client.getRaw(pfad);
-      if (raw === 'unchanged') continue;
-      await putFile(db, pfad, { text: raw.text, hash: hash ?? '' });
-      geaendert.push(pfad);
+      try {
+        const raw = await client.getRaw(pfad);
+        if (raw === 'unchanged') continue;
+        await putFile(db, pfad, { text: raw.text, hash: hash ?? '' });
+        geaendert.push(pfad);
+      } catch (e) {
+        if (e instanceof GitHubError && ABBRUCH.has(e.kind)) throw e;
+        // Ein einzelnes Thema darf den Abgleich nicht blockieren. Eine ältere Kopie bleibt nutzbar,
+        // ohne Kopie zeigt die Ampel das Thema als fehlerhaft. Der Cache-Hash passt nicht: nächstes Mal neu versuchen.
+        fehlgeschlagen.push(pfad);
+        if (!have) thema.fehler = [...thema.fehler, LADEFEHLER];
+      }
     }
 
     const keep = new Set<string>([INDEX_PATH, ...entries.map((e) => e.pfad)]);
@@ -71,10 +86,10 @@ export async function syncContent(client: GitHubClient, db: LernDatabase): Promi
       await setMeta(db, 'indexEtag', etag ?? '');
     }
     await setMeta(db, 'lastSync', new Date().toISOString());
-    return { index, geaendert, offline: false, stand: index.erstellt };
+    return { index, geaendert, fehlgeschlagen, offline: false, stand: index.erstellt };
   } catch (e) {
     if (e instanceof GitHubError && e.kind === 'network' && cached) {
-      return { index: cached, geaendert: [], offline: true, stand: cached.erstellt };
+      return { index: cached, geaendert: [], fehlgeschlagen: [], offline: true, stand: cached.erstellt };
     }
     throw e;
   }

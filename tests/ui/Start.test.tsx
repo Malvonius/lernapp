@@ -6,6 +6,7 @@ import type { LernIndex } from '../../src/format/types';
 import { syncContent } from '../../src/lib/contentSync';
 import { getAllEvents, openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
 import { GitHubError } from '../../src/lib/github';
+import { recordEvent } from '../../src/lib/progressSync';
 import { useAppData } from '../../src/state/AppData';
 import { fakeClient, fixtureIndex } from './fakes';
 
@@ -84,6 +85,42 @@ describe('Startseite', () => {
     render(<App db={db} createClient={() => client} />);
     expect(await screen.findByRole('status')).toHaveTextContent(/offline, Stand/);
     expect(screen.getByRole('link', { name: /Angewandte Mathematik/ })).toBeInTheDocument();
+  });
+});
+
+describe('Abgleich: Inhalt und Fortschritt unabhängig', () => {
+  it('ein Thema scheitert (500): Rest wird angezeigt, kein Fehler-Banner, Thema „fehlerhaft“', async () => {
+    await mitZugang();
+    const { client } = fakeClient(index);
+    const kaputt = 'Mathe/01 Analysis/Ableitungen.md';
+    const c = { ...client, getRaw: (p: string, e?: string) => (p === kaputt ? Promise.reject(new GitHubError('other', 500)) : client.getRaw(p, e)) };
+    window.location.hash = '#/fach/mathe';
+    render(<App db={db} createClient={() => c} now={() => new Date('2026-11-22T12:00:00Z')} />);
+    expect(await screen.findByRole('button', { name: /Ableitungen/ })).toHaveTextContent(/fehlerhaft/);
+    expect(screen.getByRole('link', { name: /Taylor/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('Inhalts-Abgleich scheitert (index.json 500): Fortschritt wird trotzdem hochgeladen', async () => {
+    await mitZugang();
+    await recordEvent(db, { art: 'karte', ziel: 'k-a1b2c3', bewertung: 3, geraet: 'pc', zeit: '2026-11-22T10:00:00.000Z' });
+    const { client, state } = fakeClient(index);
+    const c = { ...client, getRaw: (p: string, e?: string) => (p === 'index.json' ? Promise.reject(new GitHubError('other', 500)) : client.getRaw(p, e)) };
+    render(<App db={db} createClient={() => c} />);
+    expect(await screen.findByText('GitHub hat einen Fehler gemeldet.')).toBeInTheDocument();
+    await waitFor(() => expect(state.puts).toEqual(['_fortschritt/pc.json']));
+  });
+
+  it('offline: kein Fortschritts-Abgleich', async () => {
+    await mitZugang();
+    await syncContent(fakeClient(index).client, db);
+    await recordEvent(db, { art: 'karte', ziel: 'k-a1b2c3', bewertung: 3, geraet: 'pc', zeit: '2026-11-22T10:00:00.000Z' });
+    const { client } = fakeClient(index, { fail: new GitHubError('network') });
+    let listDir = 0;
+    const c = { ...client, listDir: (p: string) => (listDir++, client.listDir(p)) };
+    render(<App db={db} createClient={() => c} />);
+    expect(await screen.findByRole('status')).toHaveTextContent(/offline/);
+    expect(listDir).toBe(0);
   });
 });
 

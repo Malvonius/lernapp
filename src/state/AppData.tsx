@@ -89,8 +89,12 @@ async function ladeThemen(db: LernDatabase, index: LernIndex, alt: Map<string, T
       neu.set(pfad, vorher);
       continue;
     }
-    const t = await loadTopic(db, pfad);
-    if (t) neu.set(pfad, t);
+    try {
+      const t = await loadTopic(db, pfad);
+      if (t) neu.set(pfad, t);
+    } catch {
+      // ein unlesbares Thema darf die anderen nicht verhindern
+    }
   }
   return neu;
 }
@@ -134,23 +138,31 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
     const lauf = (async () => {
       setSyncStatus((s) => ({ ...s, laeuft: true }));
       try {
-        const r = await syncContent(client, db);
-        const neueThemen = await ladeThemen(db, r.index, themenRef.current, r.geaendert);
-        let offline = r.offline;
+        // Inhalt und Fortschritt unabhängig: scheitert der Inhalt, wird der Fortschritt trotzdem abgeglichen (außer offline).
+        let inhalt: Awaited<ReturnType<typeof syncContent>> | null = null;
         let fehler: GitHubError | undefined;
-        if (geraet && !r.offline) {
+        try {
+          inhalt = await syncContent(client, db);
+        } catch (e) {
+          fehler = alsGitHubError(e);
+        }
+        let offline = inhalt?.offline ?? fehler?.kind === 'network';
+        const neueThemen = inhalt ? await ladeThemen(db, inhalt.index, themenRef.current, inhalt.geaendert) : null;
+        if (geraet && !offline) {
           try {
             offline = (await fortschrittAbgleichen(client, db, geraet)).offline;
           } catch (e) {
-            fehler = alsGitHubError(e);
+            fehler ??= alsGitHubError(e);
           }
         }
         const ev = await ladeEreignisse(db);
-        themenRef.current = neueThemen;
-        setIndex(r.index);
-        setThemen(neueThemen);
+        if (inhalt && neueThemen) {
+          themenRef.current = neueThemen;
+          setIndex(inhalt.index);
+          setThemen(neueThemen);
+        }
         setEreignisse(ev);
-        setSyncStatus({ laeuft: false, offline, stand: r.stand, fehler });
+        setSyncStatus((s) => ({ laeuft: false, offline: inhalt ? offline : s.offline, stand: inhalt?.stand ?? s.stand, fehler }));
       } catch (e) {
         setSyncStatus((s) => ({ ...s, laeuft: false, fehler: alsGitHubError(e) }));
       } finally {
