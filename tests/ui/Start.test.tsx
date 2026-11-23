@@ -154,11 +154,12 @@ describe('Abgleich beim Sichtbarwerden', () => {
 });
 
 function Bewerter() {
-  const { record, faellig, ereignisse, index: idx } = useAppData();
+  const { record, faellig, ereignisse, index: idx, syncStatus } = useAppData();
   return (
     <div>
       <p>fällig: {faellig.length}</p>
       <p>ereignisse: {ereignisse.length}</p>
+      <p>{syncStatus.stand ? 'Abgleich fertig' : 'noch kein Abgleich'}</p>
       <button type="button" disabled={!idx} onClick={() => void record({ art: 'karte', ziel: 'k-a1b2c3', bewertung: 3 })}>
         bewerten
       </button>
@@ -207,6 +208,8 @@ describe('Hochladen entprellt', () => {
     const knopf = await screen.findByRole('button', { name: 'bewerten' });
     await waitFor(() => expect(knopf).toBeEnabled());
     await waitFor(() => expect(indexAbrufe).toBe(1));
+    // erster Abgleich fertig (stand wird erst an seinem Ende gesetzt), sonst würde ein zweiter mit ihm zusammengelegt
+    await screen.findByText('Abgleich fertig');
     return { knopf, state: f.state, indexAbrufe: () => indexAbrufe };
   }
 
