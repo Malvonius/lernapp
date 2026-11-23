@@ -5,9 +5,10 @@ import { MAX_NEUE_PRO_SITZUNG } from './Wiederholen';
 import { aktiveKartenIds, aktiveUebungIds, themenPfade, useAppData } from '../../state/AppData';
 import { fachStatus, STATUS_REIHE, type Status } from '../../lib/status';
 import { STATUS_LABEL } from '../components/Ampel';
+import { Glut } from '../components/Glut';
 import { SyncBanner } from '../components/SyncBanner';
 
-function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<string> }) {
+function FachKachel({ fach, faelligSet, nr }: { fach: IndexSubject; faelligSet: Set<string>; nr: number }) {
   const { topics, kartenZustand, uebungsStand, jetzt } = useAppData();
   const pfade = themenPfade(fach);
   const kartenIds = (pfad: string) => {
@@ -25,7 +26,7 @@ function FachKachel({ fach, faelligSet }: { fach: IndexSubject; faelligSet: Set<
   const gesamt = stati.length || 1;
 
   return (
-    <li>
+    <li className="gestaffelt" style={{ '--i': nr } as CSSProperties}>
       <Link to={`/fach/${encodeURIComponent(fach.id)}`} className="kachel" style={{ '--fach': fach.farbe } as CSSProperties}>
         <span className="kachel__name">{fach.name}</span>
         <span className="kachel__info">
@@ -55,23 +56,29 @@ export function Start() {
   const ueberfaellig = faellig.length - neu;
 
   return (
-    <section className="screen" aria-labelledby="start-h">
+    <section className="screen screen--start" aria-labelledby="start-h">
       <h1 id="start-h" className="visually-hidden">Start</h1>
       <SyncBanner />
       {index ? (
         <>
+          <Glut />
           <div className="start-aktionen">
             <Link to="/wiederholen" className="cta">
-              Jetzt wiederholen ({ueberfaellig} fällig · {Math.min(neu, MAX_NEUE_PRO_SITZUNG)} neu)
+              <span className="cta__titel">Jetzt wiederholen</span>{' '}
+              <span className="cta__info">
+                <span className="visually-hidden">(</span>
+                {ueberfaellig} fällig · {Math.min(neu, MAX_NEUE_PRO_SITZUNG)} neu
+                <span className="visually-hidden">)</span>
+              </span>
             </Link>
             <Link to="/pruefung" className="button button--quiet start-pruefung">
               Prüfung starten
             </Link>
           </div>
-          <h2>Fächer</h2>
+          <h2 className="abschnitt-titel">Fächer</h2>
           <ul className="kacheln">
-            {index.faecher.map((f) => (
-              <FachKachel key={f.id} fach={f} faelligSet={faelligSet} />
+            {index.faecher.map((f, i) => (
+              <FachKachel key={f.id} fach={f} faelligSet={faelligSet} nr={i} />
             ))}
           </ul>
         </>

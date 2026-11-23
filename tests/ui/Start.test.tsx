@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
 import { syncContent } from '../../src/lib/contentSync';
@@ -99,6 +99,41 @@ describe('Startseite', () => {
     render(<App db={db} createClient={() => client} />);
     expect(await screen.findByRole('status')).toHaveTextContent(/offline, Stand/);
     expect(screen.getByRole('link', { name: /Angewandte Mathematik/ })).toBeInTheDocument();
+  });
+});
+
+describe('Glut-Serie auf der Startseite', () => {
+  // 22.11.2026 13:00 in Wien
+  const JETZT = () => new Date('2026-11-22T12:00:00Z');
+
+  it('ohne Lerntage: kalte Glut, 0 und Aufforderung', async () => {
+    await mitZugang();
+    render(<App db={db} createClient={() => fakeClient(index).client} now={JETZT} />);
+    const glut = await screen.findByRole('region', { name: 'Glut' });
+    expect(glut).toHaveAttribute('data-zustand', 'kalt');
+    expect(within(glut).getByText('Noch keine Glut')).toBeInTheDocument();
+    expect(within(glut).getByText('Lern heute eine Karte, dann fängt sie an zu glühen')).toBeInTheDocument();
+  });
+
+  it('heute noch nicht gelernt, aber gestern und vorgestern (auch auf einem anderen Gerät): glimmt mit 2 Tagen', async () => {
+    await mitZugang();
+    await recordEvent(db, { art: 'karte', ziel: 'k-a1b2c3', bewertung: 3, geraet: 'pc', zeit: '2026-11-20T18:00:00.000Z' });
+    await recordEvent(db, { art: 'uebung', ziel: 'u-aaa111', richtig: true, geraet: 'handy', zeit: '2026-11-21T18:00:00.000Z' });
+    render(<App db={db} createClient={() => fakeClient(index).client} now={JETZT} />);
+    const glut = await screen.findByRole('region', { name: 'Glut' });
+    expect(glut).toHaveAttribute('data-zustand', 'glimmt');
+    expect(within(glut).getByText('2 Tage in Folge')).toBeInTheDocument();
+    expect(within(glut).getByText('Heute noch nicht gelernt – halte die Glut am Leben')).toBeInTheDocument();
+  });
+
+  it('heute gelernt: brennt, ohne Erinnerung', async () => {
+    await mitZugang();
+    await recordEvent(db, { art: 'karte', ziel: 'k-a1b2c3', bewertung: 3, geraet: 'pc', zeit: '2026-11-22T08:00:00.000Z' });
+    render(<App db={db} createClient={() => fakeClient(index).client} now={JETZT} />);
+    const glut = await screen.findByRole('region', { name: 'Glut' });
+    expect(glut).toHaveAttribute('data-zustand', 'brennt');
+    expect(within(glut).getByText('1 Tag in Folge')).toBeInTheDocument();
+    expect(within(glut).queryByText(/Heute noch nicht gelernt/)).toBeNull();
   });
 });
 
