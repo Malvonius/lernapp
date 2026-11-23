@@ -9,6 +9,8 @@ import { buildIndex } from '../src/format/buildIndex';
  */
 
 const FIXTURE_ROOT = fileURLToPath(new URL('../tests/fixtures/lernstoff-mini/', import.meta.url));
+/** Selbst geschriebenes Test-Thema mit feindlichem Mindmap-Text (kein echter Lernstoff) */
+const XSS_ROOT = fileURLToPath(new URL('./fixtures/lernstoff-xss/', import.meta.url));
 const REPO_PFAD = '/repos/Malvonius/lernstoff';
 const FORTSCHRITT = '_fortschritt/handy.json';
 const TEST_TOKEN = 'e2e-test-token'; // Testwert, kein echtes Token
@@ -73,7 +75,9 @@ class FakeGitHub {
     }
     const fort = this.fortschritt.get(pfad);
     if (fort) {
-      if (raw) return route.fulfill({ status: 200, headers: CORS, body: fort.text });
+      const etag = `"${fort.sha}"`;
+      if (raw && req.headers()['if-none-match'] === etag) return route.fulfill({ status: 304, headers: { ...CORS, etag } });
+      if (raw) return route.fulfill({ status: 200, headers: { ...CORS, etag }, body: fort.text });
       return this.json(route, 200, { sha: fort.sha, encoding: 'base64', content: Buffer.from(fort.text).toString('base64') });
     }
     const text = this.dateien.get(pfad);
@@ -100,12 +104,12 @@ class FakeGitHub {
   }
 }
 
-async function ladeFixture(): Promise<Map<string, string>> {
-  const { index } = await buildIndex(FIXTURE_ROOT, { fix: false, now: new Date('2026-11-22T08:00:00.000Z') });
+async function ladeFixture(root = FIXTURE_ROOT): Promise<Map<string, string>> {
+  const { index } = await buildIndex(root, { fix: false, now: new Date('2026-11-22T08:00:00.000Z') });
   const dateien = new Map<string, string>([['index.json', JSON.stringify(index)]]);
   for (const f of index.faecher) {
     for (const t of [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet]) {
-      if (t.pfad) dateien.set(t.pfad, await readFile(FIXTURE_ROOT + t.pfad, 'utf8'));
+      if (t.pfad) dateien.set(t.pfad, await readFile(root + t.pfad, 'utf8'));
     }
   }
   return dateien;
@@ -121,10 +125,8 @@ async function keinHorizontalesScrollen(page: Page) {
 
 const handyPuts = (gh: FakeGitHub) => gh.puts.filter((p) => p.pfad === FORTSCHRITT);
 
-test('Einrichten, Lernen, offline starten und Offline-Bewertung nachreichen', async ({ page, context }) => {
-  const gh = new FakeGitHub(await ladeFixture());
-  await context.route('https://api.github.com/**', (route) => gh.handle(route));
-
+/** Konsolen- und Seitenfehler sammeln (gewollte HTTP-Fehler des Mocks ausgenommen). */
+function sammleFehler(page: Page): string[] {
   const fehler: string[] = [];
   page.on('pageerror', (e) => fehler.push(`pageerror: ${e.message}`));
   page.on('console', (m: ConsoleMessage) => {
@@ -133,13 +135,34 @@ test('Einrichten, Lernen, offline starten und Offline-Bewertung nachreichen', as
     if (m.location().url.startsWith('https://api.github.com/')) return;
     fehler.push(`console: ${m.text()} @ ${m.location().url}`);
   });
+  return fehler;
+}
 
-  // 1. Einrichten
+/** Simuliert „App in den Hintergrund“ (visibilitychange → hidden) und danach wieder sichtbar ohne Ereignis. */
+async function kurzImHintergrund(page: Page) {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+  });
+}
+
+async function einrichten(page: Page) {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Einrichten' })).toBeVisible();
   await page.getByLabel('GitHub-Token').fill(TEST_TOKEN);
   await expect(page.getByLabel('Gerätename')).toHaveValue('handy');
   await page.getByRole('button', { name: 'Verbindung prüfen' }).click();
+}
+
+test('Einrichten, Lernen, offline starten und Offline-Bewertung nachreichen', async ({ page, context }) => {
+  const gh = new FakeGitHub(await ladeFixture());
+  await context.route('https://api.github.com/**', (route) => gh.handle(route));
+
+  const fehler = sammleFehler(page);
+
+  // 1. Einrichten
+  await einrichten(page);
 
   // 2. Start
   const fachKachel = page.getByRole('link', { name: /Angewandte Mathematik/ });
@@ -162,22 +185,26 @@ test('Einrichten, Lernen, offline starten und Offline-Bewertung nachreichen', as
   await expect(page.getByRole('heading', { level: 1, name: 'Ableitungen' })).toBeVisible();
   await keinHorizontalesScrollen(page);
 
-  // 5. Karte wiederholen (online → sofort hochgeladen)
+  // 5. Karte wiederholen: hochgeladen wird gebündelt, spätestens beim Verlassen der Sitzung
   await page.getByRole('link', { name: 'Dieses Thema wiederholen' }).click();
   await page.getByRole('button', { name: 'Antwort zeigen' }).click();
   await page.getByRole('button', { name: /^Gut/ }).click();
+  await expect(page.getByRole('button', { name: 'Antwort zeigen' })).toBeVisible();
+  expect(handyPuts(gh)).toHaveLength(0);
+  await page.goBack();
   await expect.poll(() => handyPuts(gh).length).toBe(1);
   expect(handyPuts(gh)[0]!.inhalt.ereignisse).toEqual([
     expect.objectContaining({ art: 'karte', ziel: 'k-a1b2c3', bewertung: 3, geraet: 'handy' }),
   ]);
 
-  // 6. Übung lösen
-  await page.goBack();
+  // 6. Übung lösen: App in den Hintergrund → sofort hochgeladen
   await expect(page.getByRole('heading', { level: 1, name: 'Ableitungen' })).toBeVisible();
   await page.getByRole('tab', { name: 'Übungen' }).click();
   await page.getByRole('textbox', { name: 'Deine Antwort' }).fill('12');
   await page.getByRole('button', { name: 'Prüfen' }).first().click();
   await expect(page.getByText('Richtig', { exact: true })).toBeVisible();
+  expect(handyPuts(gh)).toHaveLength(1);
+  await kurzImHintergrund(page);
   await expect.poll(() => handyPuts(gh).length).toBe(2);
   expect(handyPuts(gh)[1]!.inhalt.ereignisse).toContainEqual(expect.objectContaining({ art: 'uebung', ziel: 'u-aaa111', richtig: true }));
 
@@ -195,20 +222,53 @@ test('Einrichten, Lernen, offline starten und Offline-Bewertung nachreichen', as
   await page.getByRole('button', { name: 'Antwort zeigen' }).click();
   await page.getByRole('button', { name: /^Gut/ }).click();
   await expect(page.getByText(/Noch \d+ von \d+|Fertig/)).toBeVisible();
-  // Der Upload-Versuch im Hintergrund muss gescheitert sein, bevor es wieder online geht.
+  // Sitzung verlassen → Upload-Versuch, der offline scheitern muss, bevor es wieder online geht.
+  await page.getByRole('link', { name: 'Zu den Einstellungen' }).click();
   await expect.poll(() => gh.abgewiesen).toContain('GET /repos/Malvonius/lernstoff/contents/_fortschritt');
   expect(handyPuts(gh)).toHaveLength(2);
 
-  // 9. Wieder online + Sync → die Offline-Bewertung landet im PUT auf _fortschritt/handy.json
+  // 9. Wieder online (online-Event startet den Abgleich) + Sync → die Offline-Bewertung landet im PUT
   gh.offline = false;
   await context.setOffline(false);
-  await page.getByRole('link', { name: 'Zu den Einstellungen' }).click();
   await page.getByRole('button', { name: 'Jetzt synchronisieren' }).click();
   await expect.poll(() => handyPuts(gh).length).toBe(3);
   const letzte = handyPuts(gh)[2]!.inhalt.ereignisse;
   expect(letzte.filter((e) => e.art === 'karte' && e.zeit >= vorOffline)).toHaveLength(1);
   expect(letzte).toHaveLength(3);
   await expect(page.getByText(/^offline/)).toHaveCount(0);
+
+  expect(fehler).toEqual([]);
+});
+
+test('Mindmap mit feindlichem Knotentext: kein HTML, kein javascript:-Link, Seite bleibt scrollbar', async ({ page, context }) => {
+  const gh = new FakeGitHub(await ladeFixture(XSS_ROOT));
+  await context.route('https://api.github.com/**', (route) => gh.handle(route));
+  const fehler = sammleFehler(page);
+
+  await einrichten(page);
+  await page.getByRole('link', { name: /Sicherheitstest/ }).click();
+  await page.getByRole('link', { name: /Feindlich/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Feindlich' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Mindmap' }).click();
+
+  const bild = page.getByRole('img', { name: 'Mindmap: Wurzel' });
+  await expect(bild).toBeVisible();
+  // markmap hat gerendert: der feindliche Text steht als reiner Text im SVG
+  await expect(bild).toContainText('<img src=x onerror=');
+  await expect(bild).toContainText('Harmlos');
+  expect(await bild.locator('img').count()).toBe(0);
+  expect(await bild.locator('a[href^="javascript" i]').count()).toBe(0);
+  expect(await page.locator('script:not([src])').evaluateAll((s) => s.filter((e) => e.textContent?.includes('__xss')).length)).toBe(0);
+  // auf jeden Knoten tippen (klappt Äste, darf nichts ausführen)
+  for (const knoten of await bild.locator('foreignObject').all()) await knoten.click({ force: true });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss)).toBeUndefined();
+
+  // Gesten erst nach „Zoomen und verschieben“ (vorher Seite per Wischen scrollbar)
+  const touchAction = () => bild.evaluate((e) => getComputedStyle(e).touchAction);
+  expect(await touchAction()).toBe('pan-y');
+  await page.getByRole('button', { name: 'Zoomen und verschieben' }).click();
+  expect(await touchAction()).toBe('none');
 
   expect(fehler).toEqual([]);
 });
