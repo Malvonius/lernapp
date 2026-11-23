@@ -43,3 +43,6 @@ Das Token hat nur Leserecht. Fine-grained Token mit „Contents: Read and write�
 
 ## Hochladen: „Hinweis konnte nicht gespeichert werden – bitte nochmal“
 Die Datei ist in `_inbox/`, nur die `.meta.json` fehlt. Nicht nochmal hochladen; Bob verarbeitet die Datei auch ohne Hinweis (Fach dann „Bob entscheidet“).
+
+## Deploy rot: „Unhandled Rejection … window is not defined“
+Ein Test endet, während ein Hintergrund-Sync noch läuft. Seit 23.11.2026 überspringt `AppDataProvider` alle setState nach dem Unmount (`aktiv`-Ref); neue Tests mit Provider sollten im `afterEach` auf das Ende des Syncs warten.
