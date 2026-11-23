@@ -151,6 +151,72 @@ describe('putFile', () => {
   });
 });
 
+describe('putBinary', () => {
+  it('überträgt rohe Bytes als korrektes Base64 samt Message', async () => {
+    const { gh, f } = client(async () => res(201, { content: { sha: 'BIN' } }));
+    const r = await gh.putBinary('_inbox/a.pdf', new Uint8Array([0, 255, 137, 80]), null, 'upload');
+    expect(r).toEqual({ sha: 'BIN' });
+    const [url, init] = call(f);
+    expect(url).toBe(`${BASE}/_inbox/a.pdf`);
+    expect(init?.method).toBe('PUT');
+    const body = JSON.parse(init?.body as string);
+    expect(body.content).toBe('AP+JUA==');
+    expect(body.message).toBe('upload');
+    expect(body.branch).toBe('main');
+    expect('sha' in body).toBe(false);
+  });
+  it('schickt sha mit, wenn vorhanden', async () => {
+    const { gh, f } = client(async () => res(200, { content: { sha: 'N' } }));
+    await gh.putBinary('a.bin', new Uint8Array([1]), 'ALT', 'm');
+    expect(JSON.parse(call(f)[1]?.body as string).sha).toBe('ALT');
+  });
+  it('422 und 409 -> conflict, 401 und 403 -> auth', async () => {
+    for (const [s, kind] of [[422, 'conflict'], [409, 'conflict'], [401, 'auth'], [403, 'auth']] as const) {
+      const { gh } = client(async () => res(s, { message: 'x' }));
+      expect((await catchErr(gh.putBinary('a.bin', new Uint8Array([1]), null, 'm'))).kind).toBe(kind);
+    }
+  });
+  it('Verbindungsfehler -> network', async () => {
+    const { gh } = client(async () => {
+      throw new TypeError('offline');
+    });
+    expect((await catchErr(gh.putBinary('a.bin', new Uint8Array([1]), null, 'm'))).kind).toBe('network');
+  });
+  it('großer Upload (25 MB) läuft ohne Stack-Überlauf und ergibt gültiges Base64', async () => {
+    const gross = new Uint8Array(25 * 1024 * 1024).fill(7);
+    const { gh, f } = client(async () => res(201, { content: { sha: 'G' } }));
+    await gh.putBinary('a.bin', gross, null, 'm');
+    const body = JSON.parse(call(f)[1]?.body as string);
+    expect(body.content.length).toBe(Math.ceil(gross.length / 3) * 4);
+    expect(body.content.slice(0, 8)).toBe('BwcHBwcH');
+  });
+  it('Timeout: eigenes Limit von 120 s statt Standard', async () => {
+    const spy = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      const { gh } = client(async () => res(201, { content: { sha: 'T' } }));
+      await gh.putBinary('a.bin', new Uint8Array([1]), null, 'm');
+      expect(spy).toHaveBeenCalledWith(120_000);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('hängende Anfrage: Abbruch durch das Timeout-Signal -> network', async () => {
+    const ctrl = new AbortController();
+    const spy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(ctrl.signal);
+    try {
+      const f = vi.fn(
+        (_u: string, init?: RequestInit) => new Promise<Response>((_, rej) => init?.signal?.addEventListener('abort', () => rej(init.signal!.reason))),
+      );
+      const gh = createGitHubClient(TOKEN, f as unknown as typeof fetch);
+      const p = catchErr(gh.putBinary('a.bin', new Uint8Array([1]), null, 'm'));
+      ctrl.abort(new DOMException('zu langsam', 'TimeoutError'));
+      expect((await p).kind).toBe('network');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe('listDir', () => {
   it('gibt Dateinamen zurück', async () => {
     const { gh, f } = client(async () =>

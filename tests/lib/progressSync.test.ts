@@ -52,6 +52,9 @@ class FakeRepo implements GitHubClient {
     this.set(path, text);
     return { sha: this.files.get(path)!.sha };
   }
+  async putBinary(): Promise<{ sha: string }> {
+    throw new Error('unused');
+  }
   async listDir(path: string) {
     this.chk();
     return [...this.files.keys()].filter((p) => p.startsWith(path + '/')).map((p) => p.slice(path.length + 1));

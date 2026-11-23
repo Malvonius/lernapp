@@ -34,6 +34,7 @@ function fake(state: { index: LernIndex; etag: string; fail?: GitHubError; conte
     },
     async getFile() { throw new Error('unused'); },
     async putFile() { throw new Error('unused'); },
+    async putBinary() { throw new Error('unused'); },
     async listDir() { throw new Error('unused'); },
     async testAccess() {},
   };

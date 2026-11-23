@@ -30,6 +30,8 @@ export interface GitHubClient {
   getRaw(path: string, etag?: string): Promise<{ text: string; etag: string | null } | 'unchanged'>;
   getFile(path: string): Promise<{ text: string; sha: string } | null>;
   putFile(path: string, text: string, sha: string | null, message: string): Promise<{ sha: string }>;
+  /** Rohe Bytes (Upload); gleiche Fehlerabbildung wie putFile, aber mit langem Timeout für große Dateien. */
+  putBinary(path: string, bytes: Uint8Array, sha: string | null, message: string): Promise<{ sha: string }>;
   listDir(path: string): Promise<string[]>;
   testAccess(): Promise<void>;
 }
@@ -41,13 +43,17 @@ function encodePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
-function toBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+/** Base64 in Blöcken (Vielfaches von 3 Bytes), damit weder der Aufruf-Stack noch ein Riesen-String zum Problem wird. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const teile: string[] = [];
+  for (let i = 0; i < bytes.length; i += 0x6000) {
+    teile.push(btoa(String.fromCharCode(...bytes.subarray(i, i + 0x6000))));
   }
-  return btoa(bin);
+  return teile.join('');
+}
+
+function toBase64(text: string): string {
+  return bytesToBase64(new TextEncoder().encode(text));
 }
 
 function fromBase64(b64: string): string {
@@ -69,6 +75,8 @@ function errorFor(res: Response, put: boolean): GitHubError {
 
 /** Höchstdauer je Anfrage inkl. Antwort-Inhalt: ein hängendes Netz darf den Abgleich nie dauerhaft blockieren. */
 export const TIMEOUT_MS = 20_000;
+/** Upload großer Dateien (bis 25 MB) am Handy braucht länger. */
+export const BINARY_TIMEOUT_MS = 120_000;
 
 /** Liest den Antwort-Inhalt; Abbruch (Timeout) oder Verbindungsfehler dabei → network. */
 async function lies<T>(read: () => Promise<T>): Promise<T> {
@@ -80,12 +88,18 @@ async function lies<T>(read: () => Promise<T>): Promise<T> {
 }
 
 export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...a) => fetch(...a), timeoutMs = TIMEOUT_MS): GitHubClient {
-  async function request(url: string, init: RequestInit = {}, accept = 'application/vnd.github+json', extra: Record<string, string> = {}) {
+  async function request(
+    url: string,
+    init: RequestInit = {},
+    accept = 'application/vnd.github+json',
+    extra: Record<string, string> = {},
+    limit = timeoutMs,
+  ) {
     try {
       return await fetchImpl(url, {
         ...init,
         cache: 'no-store', // Contents-API sendet max-age=60: nach Konflikt sonst alter sha
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(limit),
         headers: { Authorization: `Bearer ${token}`, Accept: accept, ...extra },
       });
     } catch {
@@ -119,6 +133,20 @@ export function createGitHubClient(token: string, fetchImpl: typeof fetch = (...
       const res = await request(contentsUrl(path), { method: 'PUT', body: JSON.stringify(body) }, 'application/vnd.github+json', {
         'Content-Type': 'application/json',
       });
+      if (!res.ok) throw errorFor(res, true);
+      const j = (await lies(() => res.json())) as { content: { sha: string } };
+      return { sha: j.content.sha };
+    },
+    async putBinary(path, bytes, sha, message) {
+      const body: Record<string, string> = { message, content: bytesToBase64(bytes), branch: REPO.branch };
+      if (sha) body.sha = sha;
+      const res = await request(
+        contentsUrl(path),
+        { method: 'PUT', body: JSON.stringify(body) },
+        'application/vnd.github+json',
+        { 'Content-Type': 'application/json' },
+        Math.max(timeoutMs, BINARY_TIMEOUT_MS),
+      );
       if (!res.ok) throw errorFor(res, true);
       const j = (await lies(() => res.json())) as { content: { sha: string } };
       return { sha: j.content.sha };

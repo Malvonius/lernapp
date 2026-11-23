@@ -31,6 +31,10 @@ export function fakeClient(index: LernIndex, opts: { fail?: GitHubError } = {}) 
       state.puts.push(path);
       return { sha: `sha${state.puts.length}` };
     },
+    async putBinary() {
+      chk();
+      return { sha: 'bin' };
+    },
     async listDir() {
       chk();
       return [];
