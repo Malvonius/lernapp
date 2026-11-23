@@ -46,7 +46,7 @@ const formatRest = (ms: number) => {
 };
 
 export function Pruefung() {
-  const { index, topics, record } = useAppData();
+  const { index, topics, record, zufall } = useAppData();
   const [fachId, setFachId] = useState<string | null>(null);
   const [gewaehlt, setGewaehlt] = useState<string[]>([]);
   const [anzahl, setAnzahl] = useState(10);
@@ -104,7 +104,7 @@ export function Pruefung() {
     if (!fach) return;
     const ordner = kapitel.filter((k) => gewaehlt.includes(k.ordner));
     const eingabe: PruefungsThema[] = ordner.flatMap((k) => k.themen.map((topic) => ({ fach: fach.id, kapitel: k.ordner, topic })));
-    const aufgaben = bauePruefung(eingabe, anzahl, Math.random);
+    const aufgaben = bauePruefung(eingabe, anzahl, zufall);
     const quellen = new Map<string, Quelle>();
     for (const { topic } of eingabe) {
       for (const k of topic.karten) if (k.id) quellen.set(k.id, { karte: k, thema: topic.id, topic });

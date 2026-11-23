@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
 import { getAllEvents, openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
@@ -22,10 +22,22 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function oeffneUndWaehle(limit?: string) {
+/** Seedbarer Zufall (mulberry32): jeder Test zieht dieselben Aufgaben in derselben Reihenfolge. */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+async function oeffneUndWaehle(limit?: string, seed = 7) {
   window.location.hash = '#/pruefung';
   const { client } = fakeClient(index);
-  render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+  render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} zufall={seeded(seed)} />);
   const start = await screen.findByRole('button', { name: 'Prüfung starten' });
   expect(start).toBeDisabled(); // ohne Fach und Kapitel
   fireEvent.click(await screen.findByRole('radio', { name: /Mathe/ }));
@@ -104,6 +116,30 @@ describe('Prüfung', () => {
     expect(screen.getAllByText('0 von 6').length).toBeGreaterThan(0);
     expect(screen.getByText(/Die Zeit ist abgelaufen/)).toBeInTheDocument();
     await waitFor(async () => expect((await getAllEvents(db)).find((e) => e.art === 'pruefung')).toMatchObject({ punkte: 0, max: 6 }));
+  });
+});
+
+describe('Prüfung: Zufall', () => {
+  /** Text der aktuellen Aufgabe (Karte oder Übung) */
+  const aufgabe = async () => {
+    await waitFor(() => {
+      if (!document.querySelector('.lernkarte, .uebung')) throw new Error('warten');
+    });
+    return (document.querySelector('.lernkarte, .uebung') as HTMLElement).textContent;
+  };
+
+  it('nutzt den injizierten Zufall statt Math.random: gleicher Seed → gleiche erste Aufgabe', async () => {
+    const random = vi.spyOn(Math, 'random');
+    await oeffneUndWaehle(undefined, 1);
+    const erste = await aufgabe();
+    expect(random).not.toHaveBeenCalled();
+    random.mockRestore();
+    cleanup();
+    db = await openLernDb(`pruefung-${n++}`);
+    await setSetting(db, 'token', 'test-token');
+    await setSetting(db, 'geraet', 'pc');
+    await oeffneUndWaehle(undefined, 1);
+    expect(await aufgabe()).toBe(erste);
   });
 });
 

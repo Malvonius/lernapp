@@ -33,6 +33,8 @@ export interface AppData {
   faellig: string[];
   /** Zeitpunkt, auf den `faellig` und die Ampel-Status gerechnet sind (neu nach jedem Abgleich) */
   jetzt: Date;
+  /** Zufallsquelle in [0, 1) (Prüfung mischen); in Tests seedbar */
+  zufall: () => number;
   syncStatus: SyncStatus;
   sync(): Promise<void>;
   /** Speichert lokal; hochgeladen wird gebündelt (nach UPLOAD_PAUSE_MS ohne weitere Bewertung, im Hintergrund, am Sitzungsende). */
@@ -52,6 +54,8 @@ export interface AppDataProviderProps {
   /** Für Tests: Fake-Client statt GitHub */
   createClient?: (token: string) => GitHubClient;
   now?: () => Date;
+  /** Für Tests: seedbarer Zufall statt Math.random */
+  zufall?: () => number;
 }
 
 const Ctx = createContext<AppData | null>(null);
@@ -108,7 +112,7 @@ export const UPLOAD_PAUSE_MS = 60_000;
 const alsGitHubError = (e: unknown) => (e instanceof GitHubError ? e : new GitHubError('other'));
 const ladeEreignisse = async (db: LernDatabase) => (await getAllEvents(db)) as Ereignis[];
 
-export function AppDataProvider({ children, db: dbProp, createClient = createGitHubClient, now = () => new Date() }: AppDataProviderProps) {
+export function AppDataProvider({ children, db: dbProp, createClient = createGitHubClient, now = () => new Date(), zufall = Math.random }: AppDataProviderProps) {
   const [bereit, setBereit] = useState(false);
   const [zugang, setZugang] = useState<{ token: string | null; geraet: string | null }>({ token: null, geraet: null });
   const [theme, setTheme] = useState<Theme>('dunkel');
@@ -320,6 +324,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       ereignisse,
       faellig,
       jetzt,
+      zufall,
       syncStatus,
       sync,
       record,
@@ -328,7 +333,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       speichereZugang,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
+    [bereit, zugang, theme, index, topics, kartenZustand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;
