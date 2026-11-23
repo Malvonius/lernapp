@@ -41,6 +41,10 @@ export function Einstellungen() {
       await pruefeVerbindung(token.trim() || undefined);
       await speichereZugang({ token: token.trim() || undefined, geraet: normalisiert });
       setToken('');
+      // Browser darf Cache und Outbox dann nicht bei Platzmangel löschen; Ablehnung oder fehlende API sind egal
+      void Promise.resolve()
+        .then(() => navigator.storage?.persist?.())
+        .catch(() => undefined);
       setMeldung({ art: 'ok', text: 'Verbindung klappt, gespeichert.' });
       void sync();
     } catch (e) {

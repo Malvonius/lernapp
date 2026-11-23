@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
 import type { LernIndex } from '../../src/format/types';
 import { getSetting, openLernDb, setSetting, type LernDatabase } from '../../src/lib/db';
@@ -53,6 +53,47 @@ describe('Einrichten', () => {
     expect(await screen.findByText('Token ungültig oder ohne Zugriff')).toBeInTheDocument();
     expect(await getSetting(db, 'token')).toBeUndefined();
     expect(screen.getByRole('heading', { name: 'Einrichten' })).toBeInTheDocument();
+  });
+});
+
+describe('Einrichten: dauerhafter Speicher', () => {
+  const setzeStorage = (wert: unknown) => Object.defineProperty(navigator, 'storage', { configurable: true, value: wert });
+  afterEach(() => setzeStorage(undefined));
+
+  const einrichten = async () => {
+    const { client } = fakeClient(index);
+    render(<App db={db} createClient={() => client} />);
+    fireEvent.change(await screen.findByLabelText('GitHub-Token'), { target: { value: 'neues-token' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verbindung prüfen' }));
+    expect(await screen.findByRole('link', { name: /Angewandte Mathematik/ })).toBeInTheDocument();
+  };
+
+  it('nach erfolgreichem Einrichten wird navigator.storage.persist() angefragt', async () => {
+    const persist = vi.fn().mockResolvedValue(true);
+    setzeStorage({ persist });
+    await einrichten();
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it('persist() wirft oder fehlt: Einrichten klappt trotzdem', async () => {
+    setzeStorage({ persist: vi.fn().mockRejectedValue(new Error('nein')) });
+    await einrichten();
+    expect(await getSetting(db, 'token')).toBe('neues-token');
+    cleanup();
+    setzeStorage(undefined);
+    db = await openLernDb(`einst-${n++}`);
+    await einrichten();
+  });
+
+  it('abgelehntes Token: kein persist()', async () => {
+    const persist = vi.fn().mockResolvedValue(true);
+    setzeStorage({ persist });
+    const { client } = fakeClient(index, { fail: new GitHubError('auth', 401) });
+    render(<App db={db} createClient={() => client} />);
+    fireEvent.change(await screen.findByLabelText('GitHub-Token'), { target: { value: 'falsch' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verbindung prüfen' }));
+    await screen.findByText('Token ungültig oder ohne Zugriff');
+    expect(persist).not.toHaveBeenCalled();
   });
 });
 
