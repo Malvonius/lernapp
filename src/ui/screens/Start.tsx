@@ -80,6 +80,9 @@ export function Start() {
             <Link to="/hochladen" className="button button--quiet">
               Unterlagen hochladen
             </Link>
+            <Link to="/statistik" className="button button--quiet">
+              Statistik
+            </Link>
             {rueckfragen > 0 && (
               <Link to="/hochladen#rueckfragen" className="rueckfrage-hinweis">
                 {rueckfragen} {rueckfragen === 1 ? 'Rückfrage' : 'Rückfragen'} von Bob

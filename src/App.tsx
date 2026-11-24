@@ -10,6 +10,7 @@ import { Probe } from './ui/screens/Probe';
 import { Pruefung } from './ui/screens/Pruefung';
 import { Suche } from './ui/screens/Suche';
 import { Start } from './ui/screens/Start';
+import { Statistik } from './ui/screens/Statistik';
 import { Thema } from './ui/screens/Thema';
 import { Wiederholen } from './ui/screens/Wiederholen';
 
@@ -34,6 +35,7 @@ function Routen() {
       <Route path="/probe/:fachId/:probeId" element={<Probe />} />
       <Route path="/hochladen" element={<Hochladen />} />
       <Route path="/suche" element={<Suche />} />
+      <Route path="/statistik" element={<Statistik />} />
       <Route path="/einstellungen" element={<Einstellungen />} />
       <Route path="*" element={<Platzhalter titel="Seite nicht gefunden" />} />
     </Routes>

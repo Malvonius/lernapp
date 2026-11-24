@@ -111,6 +111,11 @@ function FachInhalt({ fach }: { fach: IndexSubject }) {
     <>
       <h1 className="fach-titel">{fach.name}</h1>
       {fach.struktur === 'vorlaeufig' && <p className="hinweis">vorläufige Gliederung</p>}
+      <p className="fach-aktionen">
+        <Link to={`/statistik?fach=${encodeURIComponent(fach.id)}`} className="button button--quiet">
+          Statistik zu diesem Fach
+        </Link>
+      </p>
       {fach.kapitel.map((k, i) => abschnitt(`k${i}`, i, k.titel, k.themen, true))}
       {fach.nichtZugeordnet.length > 0 && abschnitt('nz', fach.kapitel.length, 'Nicht zugeordnet', fach.nichtZugeordnet, false)}
       {(fach.proben ?? []).length > 0 && (

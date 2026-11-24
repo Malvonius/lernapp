@@ -1,0 +1,197 @@
+/* ───────────────────────── Statistik ─────────────────────────
+ * Datenfarben (mit dataviz/validate_palette.js geprüft):
+ *  - eine Reihe (Säulen, Linie, Meter): dunkel #d9782a, hell #b85a16 (Helligkeitsband + ≥ 3:1 auf der Fläche)
+ *  - Glut-Kalender als ordinale Rampe, 5 Stufen (monoton, ΔL ≥ 0,06, hellstes Ende ≥ 2:1 auf der Fläche)
+ * Text trägt nie die Datenfarbe.
+ */
+:root {
+  --dv-reihe: #d9782a;
+  --dv-flaeche: var(--c-surface);
+  --dv-gitter: color-mix(in oklab, var(--c-line) 75%, transparent);
+  --dv-achse: var(--c-muted);
+  --dv-leer: var(--c-raised);
+  --dv-s1: #7a4019;
+  --dv-s2: #a4531c;
+  --dv-s3: #cc6a22;
+  --dv-s4: #ee9233;
+  --dv-s5: #ffcb6e;
+  --dv-spur: color-mix(in oklab, #d9782a 18%, var(--c-surface));
+}
+:root[data-theme='light'] {
+  --dv-reihe: #b85a16;
+  --dv-leer: #ece2d2;
+  --dv-s1: #d9a066;
+  --dv-s2: #c98243;
+  --dv-s3: #b0632a;
+  --dv-s4: #8e4818;
+  --dv-s5: #62300d;
+  --dv-spur: color-mix(in oklab, #b85a16 16%, var(--c-surface));
+}
+
+.fach-aktionen { margin: calc(-1 * var(--sp-2)) 0 var(--sp-5); }
+.fach-aktionen .button { min-height: var(--touch); }
+
+.statistik__filter { margin-bottom: var(--sp-5); }
+.statistik__filter select { max-width: 18rem; }
+.statistik__abschnitt { margin-bottom: var(--sp-6); }
+.statistik__unter { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); color: var(--c-muted); font-size: var(--fs-sm); }
+.statistik__leer {
+  padding: var(--sp-5);
+  border: 1px dashed var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+}
+.statistik__leer p { color: var(--c-muted); }
+
+/* Kennzahlen: drei Kacheln, Werte in der Sans (proportionale Ziffern) */
+.kennzahlen {
+  list-style: none;
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  box-shadow: var(--schatten-flaeche);
+}
+.kennzahlen li { display: grid; gap: var(--sp-1); align-content: start; padding: var(--sp-3) var(--sp-3); min-width: 0; }
+.kennzahlen li + li { border-left: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.kennzahl__wert { font-size: var(--fs-xl); font-weight: 650; line-height: 1.05; letter-spacing: -0.01em; }
+.kennzahl__name { color: var(--c-muted); font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; }
+@media (min-width: 560px) {
+  .kennzahlen li { padding: var(--sp-4) var(--sp-5); }
+  .kennzahl__wert { font-size: 2.25rem; }
+}
+
+/* Diagramme: eigene SVGs in echten Pixeln */
+.diagramm { position: relative; width: 100%; }
+.diagramm__svg { display: block; overflow: visible; }
+.diagramm__gitter { stroke: var(--dv-gitter); stroke-width: 1; shape-rendering: crispEdges; }
+.diagramm__basis { stroke: var(--c-line); stroke-width: 1; shape-rendering: crispEdges; }
+.diagramm__achse { fill: var(--dv-achse); font-size: 11px; font-variant-numeric: tabular-nums; }
+.diagramm__wert { fill: var(--c-text); font-size: 12px; font-weight: 700; }
+.diagramm__saeule { fill: var(--dv-reihe); transition: opacity var(--dur) ease; }
+.diagramm__treffer { fill: transparent; }
+.diagramm__mark { outline: none; cursor: default; }
+.diagramm__mark:focus-visible .diagramm__treffer { fill: color-mix(in oklab, var(--c-focus) 14%, transparent); }
+.diagramm__svg:has(.diagramm__mark[data-aktiv='true']) .diagramm__mark:not([data-aktiv='true']) .diagramm__saeule { opacity: 0.45; }
+.diagramm__linie { fill: none; stroke: var(--dv-reihe); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.diagramm__punkt { fill: var(--dv-reihe); stroke: var(--dv-flaeche); stroke-width: 2; }
+
+.diagramm__tipp {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -100%);
+  display: grid;
+  gap: 2px;
+  min-width: 9rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-field);
+  background: var(--c-surface);
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.7);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+  z-index: 2;
+}
+.diagramm__tipp strong { font-size: var(--fs-md); }
+.diagramm__tipp span { color: var(--c-muted); font-size: var(--fs-xs); }
+.diagramm__tipp--fest { position: static; transform: none; justify-self: start; margin-top: var(--sp-2); width: max-content; }
+
+.diagramm__tabelle { margin-top: var(--sp-2); font-size: var(--fs-sm); }
+.diagramm__tabelle summary { min-height: var(--touch); display: flex; align-items: center; color: var(--c-link); cursor: pointer; }
+.diagramm__tabelle table { border-collapse: collapse; width: 100%; max-width: 24rem; font-variant-numeric: tabular-nums; }
+.diagramm__tabelle th, .diagramm__tabelle td { text-align: left; padding: var(--sp-1) var(--sp-3); border-bottom: 1px solid color-mix(in oklab, var(--c-line) 60%, transparent); }
+.diagramm__tabelle th { color: var(--c-muted); font-weight: 600; }
+
+/* Glut-Kalender */
+.kalender__zelle { fill: var(--dv-leer); }
+.kalender__zelle[data-stufe='1'], .kalender__muster[data-stufe='1'] { fill: var(--dv-s1); background: var(--dv-s1); }
+.kalender__zelle[data-stufe='2'], .kalender__muster[data-stufe='2'] { fill: var(--dv-s2); background: var(--dv-s2); }
+.kalender__zelle[data-stufe='3'], .kalender__muster[data-stufe='3'] { fill: var(--dv-s3); background: var(--dv-s3); }
+.kalender__zelle[data-stufe='4'], .kalender__muster[data-stufe='4'] { fill: var(--dv-s4); background: var(--dv-s4); }
+.kalender__zelle[data-stufe='5'], .kalender__muster[data-stufe='5'] { fill: var(--dv-s5); background: var(--dv-s5); }
+.kalender__zelle[data-aktiv='true'] { stroke: var(--c-text); stroke-width: 1.5; }
+.kalender__legende { display: flex; align-items: center; gap: 4px; margin-top: var(--sp-2); color: var(--c-muted); font-size: var(--fs-xs); }
+.kalender__legende > span:first-child { margin-right: 4px; }
+.kalender__legende > span:last-child { margin-left: 4px; }
+.kalender__muster { width: 12px; height: 12px; border-radius: 3px; background: var(--dv-leer); }
+
+/* Trefferquote: Meter-Liste */
+.quote-fach + .quote-fach { margin-top: var(--sp-5); }
+.quote-fach__name { font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
+.quote-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.quote-liste li { display: grid; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
+.quote-liste li + li { border-top: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.quote-liste__kapitel { font-weight: 600; }
+.meter {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+}
+.meter__name { color: var(--c-text); font-variant-numeric: tabular-nums; }
+.meter__spur { height: 8px; border-radius: 4px; background: var(--dv-spur); overflow: hidden; }
+.meter__spur > span { display: block; height: 100%; border-radius: 4px; background: var(--dv-reihe); }
+.meter__zahl { color: var(--c-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; }
+
+/* Meist vergessen */
+.vergessen-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }
+.vergessen-liste li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'frage link' 'meta link';
+  align-items: center;
+  column-gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-left: 2px solid var(--c-st-rot-kern);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+}
+.vergessen-liste__frage { grid-area: frage; font-weight: 600; min-width: 0; }
+.vergessen-liste__frage p { margin: 0; }
+.vergessen-liste__meta { grid-area: meta; margin: var(--sp-1) 0 0; color: var(--c-muted); font-size: var(--fs-sm); }
+.vergessen-liste__link { grid-area: link; padding-inline: var(--sp-4); }
+
+/* Prüfungsverlauf */
+.verlauf-liste {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.verlauf-liste li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name wert' 'datum wert';
+  column-gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+}
+.verlauf-liste li + li { border-top: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.verlauf-liste__name { grid-area: name; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.verlauf-liste__datum { grid-area: datum; color: var(--c-muted); font-size: var(--fs-sm); }
+.verlauf-liste__wert { grid-area: wert; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+@media (max-width: 420px) {
+  .verlauf-liste li { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'name' 'wert' 'datum'; }
+  .verlauf-liste__wert { text-align: left; }
+  .meter { grid-template-columns: 6.5rem minmax(0, 1fr) auto; }
+}
+
+@media (forced-colors: active) {
+  .diagramm__saeule, .meter__spur > span, .diagramm__punkt { fill: CanvasText; background: CanvasText; }
+}

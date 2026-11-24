@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles/app.css';
 import './styles/probe.css';
+import './styles/statistik.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root fehlt in index.html');
