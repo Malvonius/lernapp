@@ -20,7 +20,7 @@ export function parseProbe(text: string): Probe {
   const secs = sections(body, bodyStartLine);
   const aufgabenSec = secs.get('Aufgaben');
   const aufgaben = aufgabenSec ? parseExercises(aufgabenSec, fehler) : [];
-  for (const a of aufgaben) if (a.punkte === undefined) fehler.push(`Übung Zeile ${a.zeile}: punkte fehlt`);
+  for (const a of aufgaben) if (a.punkte === undefined && !a.zurueckgezogen) fehler.push(`Übung Zeile ${a.zeile}: punkte fehlt`);
   if (!aufgaben.some((a) => !a.zurueckgezogen) && !fehler.some((f) => f.startsWith('Übung'))) fehler.push('Keine Aufgaben (Abschnitt „## Aufgaben“ mit ```uebung-Blöcken)');
 
   return {

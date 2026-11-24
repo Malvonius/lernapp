@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Topic } from '../../src/format/types';
 import type { Ereignis } from '../../src/lib/progress';
-import { aktivitaetProTag, glutKalender, meistVergessen, pruefungsVerlauf, trefferquote, type StatThema } from '../../src/lib/stats';
+import { achse, aktivitaetProTag, fachFilter, glutKalender, meistVergessen, pruefungsVerlauf, trefferquote, type StatThema } from '../../src/lib/stats';
 
 const karte = (ziel: string, zeit: string, bewertung: 1 | 2 | 3 | 4 = 3, geraet = 'pc'): Ereignis => ({ art: 'karte', ziel, zeit, geraet, bewertung });
 const uebung = (ziel: string, zeit: string, richtig: boolean, geraet = 'pc'): Ereignis => ({ art: 'uebung', ziel, zeit, geraet, richtig });
@@ -176,5 +176,32 @@ describe('pruefungsVerlauf', () => {
       { zeit: '2026-11-23T10:00:00Z', ziel: 'mathe:leer', art: 'pruefung', punkte: 0, max: 0, prozent: 0 },
     ]);
     expect(pruefungsVerlauf([])).toEqual([]);
+  });
+});
+
+describe('achse', () => {
+  it('ganzzahlige Schritte, auch bei max = 1', () => {
+    expect(achse(1)).toEqual({ oben: 1, schritt: 1 });
+    expect(achse(0)).toEqual({ oben: 4, schritt: 2 });
+    expect(achse(3)).toEqual({ oben: 4, schritt: 2 });
+    expect(achse(12)).toEqual({ oben: 20, schritt: 10 });
+    expect(achse(7)).toEqual({ oben: 10, schritt: 5 });
+  });
+});
+
+describe('fachFilter', () => {
+  const filter = fachFilter('mathe', new Set(['k-1', 'u-1', 'u-pr1']), new Set(['probe:p1']));
+  it('trennt Ereignisse zweier Fächer: eigene IDs, eigene Prüfungen und Proben', () => {
+    const ev: Ereignis[] = [
+      karte('k-1', '2026-11-20T10:00:00Z'),
+      karte('k-4', '2026-11-20T10:00:00Z'), // Physik
+      uebung('u-pr1', '2026-11-20T10:00:00Z', true), // Aufgabe der Mathe-Probe
+      pruefung('mathe:01 Analysis', '2026-11-20T10:00:00Z', 1, 2),
+      pruefung('mathematik:01', '2026-11-20T10:00:00Z', 1, 2), // anderes Fach mit ähnlicher id
+      pruefung('phys:01 Mechanik', '2026-11-20T10:00:00Z', 1, 2),
+      pruefung('probe:p1', '2026-11-20T10:00:00Z', 1, 2),
+      pruefung('probe:p2', '2026-11-20T10:00:00Z', 1, 2),
+    ];
+    expect(ev.filter(filter).map((e) => e.ziel)).toEqual(['k-1', 'u-pr1', 'mathe:01 Analysis', 'probe:p1']);
   });
 });

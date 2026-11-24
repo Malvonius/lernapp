@@ -97,6 +97,16 @@ describe('Uebung schritte', () => {
   });
 });
 
+describe('Uebung schritte ohne Schritte', () => {
+  it('leere oder fehlende Liste: Hinweis statt leerer Liste, Selbsteinschätzung bleibt bedienbar', () => {
+    render(<Uebung ex={ex({ typ: 'schritte', schritte: [] })} />);
+    expect(screen.getByText('Keine Schritte hinterlegt.')).toBeInTheDocument();
+    expect(document.querySelector('.uebung__schritte')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Hab ich gekonnt' }));
+    expect(record).toHaveBeenCalledWith({ art: 'uebung', ziel: 'u-1', richtig: true });
+  });
+});
+
 describe('Uebung mc', () => {
   const e = ex({ typ: 'mc', optionen: ['x^2', 'x^2 + 5', '2x^2'], richtig: [0, 1] });
   it('falsche Menge → falsch, richtige Antworten markiert', () => {

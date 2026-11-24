@@ -19,7 +19,7 @@ export interface AufgabenErgebnis {
 export interface ProbeAuswertung {
   punkte: number;
   max: number;
-  /** 0–100, auf zwei Nachkommastellen gerundet (damit 22/25 genau 88 ergibt) */
+  /** 0–100, ungerundet (Note vergleicht genau; gerundet wird nur in der Anzeige) */
   prozent: number;
   aufgaben: AufgabenErgebnis[];
 }
@@ -42,7 +42,8 @@ export function bewerte(aufgaben: readonly Exercise[], antworten: ReadonlyMap<nu
   });
   const punkte = ergebnisse.reduce((s, e) => s + e.punkte, 0);
   const max = ergebnisse.reduce((s, e) => s + e.max, 0);
-  const prozent = max === 0 ? 0 : Math.round((punkte * 10_000) / max) / 100;
+  // erst mal 100, dann teilen: 22 von 25 ergibt genau 88
+  const prozent = max === 0 ? 0 : (punkte * 100) / max;
   return { punkte, max, prozent, aufgaben: ergebnisse };
 }
 

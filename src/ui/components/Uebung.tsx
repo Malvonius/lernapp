@@ -2,7 +2,6 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { Exercise } from '../../format/types';
 import type { AskBobElement } from '../../lib/askBob';
 import { pruefeEingabe, pruefeMc } from '../../lib/check';
-import { formatPunkte, teilPunkte, type Stufe } from '../../lib/probe';
 import { useAppData } from '../../state/AppData';
 import { Markdown } from './Markdown';
 
@@ -20,31 +19,6 @@ export interface UebungProps {
   aufzeichnen?: boolean;
   /** Slot für Zusatzaktionen, z. B. „Frag Bob“; als Funktion bekommt er den aktuellen Stand */
   aktion?: ReactNode | ((stand: UebungStand) => ReactNode);
-  /**
-   * Probe-Schularbeit: `schritte`/`offen` werden in drei Stufen selbst eingeschätzt (volle, halbe, keine Punkte),
-   * die Lösung erscheint erst auf „Lösung zeigen“. Gemeldet wird zusätzlich `richtig` = volle Punkte.
-   */
-  onStufe?: (stufe: Stufe) => void;
-}
-
-const STUFE_TEXT: Record<Stufe, string> = { voll: 'Volle Punkte', teilweise: 'Teilweise', keine: 'Keine Punkte' };
-const STUFE_KURZ: Record<Stufe, string> = { voll: 'Voll', teilweise: 'Teilweise', keine: 'Keine' };
-
-function Stufenwahl({ punkte, onWahl }: { punkte: number; onWahl: (s: Stufe) => void }) {
-  const wert: Record<Stufe, number> = { voll: punkte, teilweise: teilPunkte(punkte), keine: 0 };
-  return (
-    <div className="stufenwahl" role="group" aria-label="Wie viele Punkte hättest du bekommen?">
-      <p className="stufenwahl__frage">Wie viele Punkte hättest du bekommen?</p>
-      <div className="stufenwahl__knoepfe">
-        {(['voll', 'teilweise', 'keine'] as const).map((s) => (
-          <button key={s} type="button" className={`stufenwahl__knopf stufenwahl__knopf--${s}`} onClick={() => onWahl(s)}>
-            {STUFE_KURZ[s]}
-            <small>{formatPunkte(wert[s])} P.</small>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function Urteil({ richtig }: { richtig: boolean }) {
@@ -72,7 +46,7 @@ function Selbsteinschaetzung({ onWahl }: { onWahl: (richtig: boolean) => void })
  * Eine Übung der vier Typen (eingabe, schritte, mc, offen). Das Ergebnis wird genau einmal gemeldet:
  * an `onErgebnis` und (wenn `aufzeichnen` und eine id da ist) an `record`.
  */
-function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: UebungProps) {
+function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion }: UebungProps) {
   const { record } = useAppData();
   const [ergebnis, setErgebnis] = useState<boolean | null>(null);
   const fertig = useRef(false);
@@ -83,7 +57,7 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: U
   const [gewaehlt, setGewaehlt] = useState<number[]>([]);
   const [notiz, setNotiz] = useState('');
   const [musterZeigen, setMusterZeigen] = useState(false);
-  const [stufe, setStufe] = useState<Stufe | null>(null);
+
   const melde = (richtig: boolean) => {
     if (fertig.current) return;
     fertig.current = true;
@@ -93,20 +67,6 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: U
     }
     onErgebnis?.(richtig);
   };
-
-  const dreistufig = onStufe !== undefined;
-  const waehleStufe = (s: Stufe) => {
-    if (fertig.current) return;
-    setStufe(s);
-    onStufe?.(s);
-    melde(s === 'voll');
-  };
-  const selbst = dreistufig ? <Stufenwahl punkte={ex.punkte ?? 0} onWahl={waehleStufe} /> : <Selbsteinschaetzung onWahl={melde} />;
-  const selbstUrteil = (richtig: boolean) => (
-    <p className="uebung__urteil" role="status">
-      {stufe ? STUFE_TEXT[stufe] : richtig ? 'Gekonnt' : 'Nicht gekonnt'}
-    </p>
-  );
 
   const schritte = ex.schritte ?? [];
   const optionen = ex.optionen ?? [];
@@ -161,17 +121,9 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: U
         </>
       )}
 
-      {ex.typ === 'schritte' && dreistufig && aufgedeckt === 0 && (
+      {ex.typ === 'schritte' && (
         <>
-          <textarea className="uebung__eingabe" aria-label="Deine Notizen" rows={4} value={notiz} onChange={(e) => setNotiz(e.target.value)} />
-          <button type="button" className="button" onClick={() => setAufgedeckt(schritte.length)}>
-            Lösung zeigen
-          </button>
-        </>
-      )}
-
-      {ex.typ === 'schritte' && (!dreistufig || aufgedeckt > 0) && (
-        <>
+          {schritte.length === 0 && <p className="uebung__loesung">Keine Schritte hinterlegt.</p>}
           {schritte.length > 0 && (
             <ol className="uebung__schritte">
               {schritte.slice(0, aufgedeckt).map((s, i) => (
@@ -186,9 +138,9 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: U
               Nächsten Schritt zeigen
             </button>
           ) : ergebnis === null ? (
-            selbst
+            <Selbsteinschaetzung onWahl={melde} />
           ) : null}
-          {ergebnis !== null && selbstUrteil(ergebnis)}
+          {ergebnis !== null && <p className="uebung__urteil" role="status">{ergebnis ? 'Gekonnt' : 'Nicht gekonnt'}</p>}
         </>
       )}
 
@@ -235,12 +187,16 @@ function UebungInhalt({ ex, onErgebnis, aufzeichnen = true, aktion, onStufe }: U
           />
           {!musterZeigen ? (
             <button type="button" className="button" onClick={() => setMusterZeigen(true)}>
-              {dreistufig ? 'Lösung zeigen' : 'Musterlösung zeigen'}
+              Musterlösung zeigen
             </button>
           ) : (
             <>
               <div className="uebung__muster">{ex.musterloesung ? <Markdown text={ex.musterloesung} /> : <p>Keine Musterlösung hinterlegt.</p>}</div>
-              {ergebnis === null ? selbst : selbstUrteil(ergebnis)}
+              {ergebnis === null ? (
+                <Selbsteinschaetzung onWahl={melde} />
+              ) : (
+                <p className="uebung__urteil" role="status">{ergebnis ? 'Gekonnt' : 'Nicht gekonnt'}</p>
+              )}
             </>
           )}
         </>

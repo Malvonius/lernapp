@@ -108,3 +108,10 @@ describe('parseProbe', () => {
     expect(parseTopic(t + aufgabe('punkte: 0\n')).fehler.join()).toMatch(/punkte/);
   });
 });
+
+describe('parseProbe: zurückgezogene Aufgaben', () => {
+  it('ohne punkte kein Fehler, wenn die Aufgabe zurückgezogen ist', () => {
+    const text = `---\nid: p-1\nfach: mathe\ntitel: Probe\ndauer_min: 30\nquellen: []\nstand: 2026-11-23\n---\n## Aufgaben\n\n\`\`\`uebung\nid: u-x00001\ntyp: eingabe\nfrage: "1+1?"\nloesung: 2\npunkte: 2\n\`\`\`\n\n\`\`\`uebung\nid: u-x00002\ntyp: eingabe\nfrage: "alt"\nloesung: 3\nstatus: zurückgezogen\n\`\`\`\n`;
+    expect(parseProbe(text).fehler).toEqual([]);
+  });
+});

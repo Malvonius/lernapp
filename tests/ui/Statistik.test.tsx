@@ -102,3 +102,20 @@ describe('Statistik', () => {
     expect(await screen.findByRole('link', { name: 'Statistik zu diesem Fach' })).toHaveAttribute('href', '#/statistik?fach=mathe');
   });
 });
+
+describe('Statistik: Feinheiten', () => {
+  it('Fach ohne Themen bekommt keine leere Trefferquote-Überschrift; Diagramm-Bild hat keine Tab-Stopps', async () => {
+    await mitDaten();
+    const mitPhysik: LernIndex = structuredClone(index);
+    mitPhysik.faecher.push({ ...structuredClone(index.faecher[0]!), id: 'physik', name: 'Physik', pfad: 'Physik/Physik.md', kapitel: [], nichtZugeordnet: [], proben: [] });
+    window.location.hash = '#/statistik';
+    const { client } = fakeClient(mitPhysik);
+    render(<App db={db} createClient={() => client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+    const quote = await screen.findByRole('region', { name: 'Trefferquote' });
+    await waitFor(() => expect(screen.getByLabelText('Fach')).toHaveTextContent('Physik'));
+    expect(within(quote).queryByText('Physik')).toBeNull();
+    expect(within(quote).getByText('Angewandte Mathematik')).toBeInTheDocument();
+    const bild = within(screen.getByRole('region', { name: 'Aktivität' })).getByRole('img');
+    expect(bild.querySelectorAll('[tabindex]')).toHaveLength(0);
+  });
+});

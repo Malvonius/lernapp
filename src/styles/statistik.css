@@ -74,7 +74,6 @@
 .diagramm__saeule { fill: var(--dv-reihe); transition: opacity var(--dur) ease; }
 .diagramm__treffer { fill: transparent; }
 .diagramm__mark { outline: none; cursor: default; }
-.diagramm__mark:focus-visible .diagramm__treffer { fill: color-mix(in oklab, var(--c-focus) 14%, transparent); }
 .diagramm__svg:has(.diagramm__mark[data-aktiv='true']) .diagramm__mark:not([data-aktiv='true']) .diagramm__saeule { opacity: 0.45; }
 .diagramm__linie { fill: none; stroke: var(--dv-reihe); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .diagramm__punkt { fill: var(--dv-reihe); stroke: var(--dv-flaeche); stroke-width: 2; }

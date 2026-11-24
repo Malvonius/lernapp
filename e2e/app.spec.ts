@@ -224,8 +224,9 @@ test('Probe-Schularbeit: starten, eine Aufgabe, abgeben, Ergebnis; Statistik öf
   await page.getByRole('button', { name: 'Starten' }).click();
   await expect(page.getByRole('timer')).toHaveText(/^(20:00|19:5\d)$/);
   await page.getByLabel('Deine Antwort').fill('8');
-  await page.getByRole('button', { name: 'Prüfen' }).click();
-  await expect(page.getByText('Richtig', { exact: true })).toBeVisible();
+  // echte Schularbeit: keine Rückmeldung während des Schreibens
+  await expect(page.getByRole('button', { name: 'Prüfen' })).toHaveCount(0);
+  await expect(page.getByText('Richtig', { exact: true })).toHaveCount(0);
   await keinHorizontalesScrollen(page);
   await page.getByRole('button', { name: 'Abgeben', exact: true }).click();
   await page.getByRole('button', { name: 'Trotzdem abgeben' }).click();

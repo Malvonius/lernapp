@@ -173,3 +173,25 @@ describe('CLI build-index', () => {
     expect(JSON.parse(readFileSync(join(root, 'index.json'), 'utf8')).fehlerAnzahl).toBeGreaterThan(0);
   });
 });
+
+describe('buildIndex: doppelte Proben-IDs', () => {
+  it('zwei Proben mit derselben id: Fehler „Probe-ID doppelt“ an beiden', async () => {
+    const zweite = readFileSync(join(root, 'Mathe/_proben/Probe Ableitungen.md'), 'utf8')
+      .replace('titel: Probe-Schularbeit Differentialrechnung', 'titel: Kopie')
+      .replace(/u-pr000(\d)/g, 'u-kp000$1');
+    writeFileSync(join(root, 'Mathe/_proben/Kopie.md'), zweite);
+    const { index } = await buildIndex(root, { fix: false });
+    const proben = index.faecher[0]!.proben;
+    expect(proben).toHaveLength(2);
+    for (const p of proben) expect(p.fehler.join()).toMatch(/Probe-ID mathe-probe-ableitungen-1 doppelt \(.*Kopie\.md.*Probe Ableitungen\.md|Probe-ID mathe-probe-ableitungen-1 doppelt \(.*Probe Ableitungen\.md.*Kopie\.md/);
+    expect(index.fehlerAnzahl).toBe(2);
+  });
+
+  it('Probe-id gleich einer Themen-id: Fehler an Probe und Thema', async () => {
+    writeFileSync(join(root, 'Mathe/_proben/x.md'), probeFile('X', probeAufgabe('u-xx0001')).replace('id: p-x', 'id: mathe-ableitungen'));
+    const { index } = await buildIndex(root, { fix: false });
+    const mathe = index.faecher[0]!;
+    expect(mathe.proben.find((p) => p.titel === 'X')!.fehler.join()).toMatch(/Probe-ID mathe-ableitungen doppelt/);
+    expect(mathe.kapitel[0]!.themen.find((t) => t.titel === 'Ableitungen')!.fehler.join()).toMatch(/Probe-ID mathe-ableitungen doppelt/);
+  });
+});

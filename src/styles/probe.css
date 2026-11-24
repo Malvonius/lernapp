@@ -102,13 +102,11 @@
 .probe-leiste__knopf[aria-current='step'] { outline: 2px solid var(--fach); outline-offset: 2px; color: var(--c-text); }
 .probe-leiste__knopf[data-beantwortet='true'][aria-current='step'] { color: var(--c-on-accent); }
 
-.probe-aufgabe .uebung { animation: feld-ein 200ms var(--ease) both; }
+.probe-feld { animation: feld-ein 200ms var(--ease) both; }
 .probe-nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-3); margin-top: var(--sp-4); }
 .probe-nav .button { flex: 1 1 9rem; white-space: nowrap; padding-inline: var(--sp-4); }
 
 /* Selbsteinschätzung in drei Glut-Stufen */
-.stufenwahl { display: grid; gap: var(--sp-2); }
-.stufenwahl__frage { margin: 0; font-weight: 600; }
 .stufenwahl__knoepfe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
 .stufenwahl__knopf {
   position: relative;
@@ -209,3 +207,39 @@
   .probe-leiste__knopf:hover { border-color: var(--fach); color: var(--c-text); }
   .stufenwahl__knopf:hover { border-color: color-mix(in oklab, var(--glut-stufe) 70%, var(--c-line)); }
 }
+
+/* Während der Probe: nur Eingabe */
+.probe-feld__hinweis { margin: 0; color: var(--c-muted); font-size: var(--fs-sm); }
+.probe-feld textarea { min-height: 8rem; resize: vertical; }
+
+/* Ergebnis: Selbsteinschätzung mit Musterlösung */
+.probe-einschaetzen { margin-bottom: var(--sp-6); }
+.probe-einschaetzen__liste { list-style: none; margin: 0 0 var(--sp-4); padding: 0; display: grid; gap: var(--sp-4); }
+.probe-einschaetzen__aufgabe {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid color-mix(in oklab, var(--c-accent) 45%, var(--c-line));
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  box-shadow: var(--schatten-flaeche);
+}
+.probe-einschaetzen__aufgabe[data-gewaehlt='voll'],
+.probe-einschaetzen__aufgabe[data-gewaehlt='teilweise'],
+.probe-einschaetzen__aufgabe[data-gewaehlt='keine'] { border-color: var(--c-line); }
+.probe-einschaetzen__vergleich { display: grid; gap: var(--sp-3); }
+@media (min-width: 640px) { .probe-einschaetzen__vergleich { grid-template-columns: 1fr 1fr; } }
+.probe-einschaetzen__vergleich > div { min-width: 0; padding: var(--sp-3); border-radius: var(--r-field); background: var(--c-raised); }
+.probe-einschaetzen__vergleich h3 { margin: 0 0 var(--sp-2); font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; color: var(--c-muted); }
+.probe-einschaetzen__eigene { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.stufenwahl__knopf[aria-pressed='true'] {
+  border-color: var(--glut-stufe);
+  background: color-mix(in oklab, var(--glut-stufe) 18%, var(--c-raised));
+  box-shadow: 0 0 0 1px var(--glut-stufe) inset;
+}
+.stufenwahl__knopf:disabled { cursor: default; transform: none; }
+.stufenwahl__knopf:disabled:not([aria-pressed='true']) { opacity: 0.5; }
+.probe-einschaetzen__speichern { display: grid; gap: var(--sp-2); justify-items: start; }
+.probe-einschaetzen__status { margin: 0; color: var(--c-ok); font-weight: 700; }
+.probe-punkte li[data-stufe='einschaetzen'] .probe-punkte__wert { color: var(--c-accent); font-weight: 600; }
+.probe-nachsehen__eigene { margin: 0; color: var(--c-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }

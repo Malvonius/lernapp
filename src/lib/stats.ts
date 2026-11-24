@@ -202,3 +202,20 @@ export function pruefungsVerlauf(ereignisse: readonly Ereignis[]): PruefungsEint
     )
     .sort((a, b) => (a.zeit < b.zeit ? -1 : a.zeit > b.zeit ? 1 : 0));
 }
+
+/** Achse für Zählwerte: saubere ganzzahlige Schritte (1, 2, 5 × 10^n), höchstens etwa zwei Schritte bis oben. */
+export function achse(max: number): { oben: number; schritt: number } {
+  if (max <= 0) return { oben: 4, schritt: 2 };
+  const roh = max / 2;
+  const p = 10 ** Math.floor(Math.log10(roh));
+  const schritt = Math.max(1, [1, 2, 5, 10].map((m) => m * p).find((s) => s >= roh) ?? 10 * p);
+  return { oben: Math.ceil(max / schritt) * schritt, schritt };
+}
+
+/**
+ * Filter für den Fach-Filter der Statistik: Karten/Übungen über ihre IDs (Themen und Proben-Aufgaben des Fachs),
+ * Prüfungen über `<fachId>:…`, Proben über `probe:<id>` der Proben dieses Fachs.
+ */
+export function fachFilter(fachId: string, ids: ReadonlySet<string>, probeZiele: ReadonlySet<string>): (e: Ereignis) => boolean {
+  return (e) => (e.art === 'pruefung' ? e.ziel.startsWith(`${fachId}:`) || probeZiele.has(e.ziel) : ids.has(e.ziel));
+}

@@ -37,6 +37,8 @@ function verlauf(): Ereignis[] {
 }
 
 async function bild(page: Page, name: string, ganz = true) {
+  // Ganzseitig von oben, sonst landet die klebende Kopfleiste mitten im Bild
+  if (ganz) await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${ZIEL}${name}.png`, fullPage: ganz });
 }
@@ -86,23 +88,26 @@ for (const v of VARIANTEN) {
         await bild(page, `${p}-02-probe-start`);
         await keinHorizontalesScrollen(page);
 
-        // Aufgaben: 1 richtig, 2 falsch, 3 Lösung mit Selbsteinschätzung
+        // Schreiben ohne Rückmeldung: 1 richtig, 2 falsch, 3 offene Aufgabe mit eigener Lösung
         await page.getByRole('button', { name: 'Starten' }).click();
         await page.getByLabel('Deine Antwort').fill('8');
-        await page.getByRole('button', { name: 'Prüfen' }).click();
+        await expect(page.getByText('Richtig', { exact: true })).toHaveCount(0);
         await bild(page, `${p}-03-probe-aufgabe`, false);
         await page.getByRole('button', { name: 'Nächste Aufgabe' }).click();
         await page.getByRole('checkbox').nth(2).check();
-        await page.getByRole('button', { name: 'Prüfen' }).click();
         await page.getByRole('button', { name: 'Nächste Aufgabe' }).click();
-        await page.getByLabel('Deine Notizen').fill("f'(x) = 3x² − 3, also x = ±1; f''(1) > 0 → Tiefpunkt");
-        await page.getByRole('button', { name: 'Lösung zeigen' }).click();
-        await bild(page, `${p}-04-probe-selbsteinschaetzung`);
+        await page.getByLabel('Deine Lösung').fill("f'(x) = 3x² − 3 = 0, also x = ±1.\nf''(1) = 6 > 0 → Tiefpunkt bei x = 1");
+        await bild(page, `${p}-04-probe-offene-aufgabe`, false);
         await keinHorizontalesScrollen(page);
-        await page.getByRole('button', { name: /^Teilweise/ }).click();
         await page.getByRole('button', { name: 'Abgeben', exact: true }).click();
         await expect(page.getByRole('heading', { level: 1, name: 'Ergebnis' })).toBeVisible();
-        await bild(page, `${p}-05-probe-ergebnis`);
+        // Selbsteinschätzung erst auf der Ergebnisseite
+        await page.getByRole('button', { name: /^Teilweise/ }).click();
+        await expect(page.getByText('6,5 von 12', { exact: true })).toBeVisible();
+        await bild(page, `${p}-05-probe-ergebnis-einschaetzen`);
+        await keinHorizontalesScrollen(page);
+        await page.getByRole('button', { name: 'Ergebnis speichern' }).click();
+        await expect(page.getByText('Ergebnis gespeichert')).toBeVisible();
         await keinHorizontalesScrollen(page);
 
         // Statistik

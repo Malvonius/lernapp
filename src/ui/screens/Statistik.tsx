@@ -4,7 +4,9 @@ import type { IndexSubject, LernIndex, Probe } from '../../format/types';
 import type { Ereignis } from '../../lib/progress';
 import { formatProzent, formatPunkte } from '../../lib/probe';
 import {
+  achse,
   aktivitaetProTag,
+  fachFilter,
   glutKalender,
   meistVergessen,
   pruefungsVerlauf,
@@ -47,15 +49,6 @@ function useBreite<T extends HTMLElement>(start: number) {
   return [ref, breite] as const;
 }
 
-/** Saubere Achsenschritte: 1, 2, 5 × 10^n */
-function achsenMax(max: number): { oben: number; schritt: number } {
-  if (max <= 0) return { oben: 4, schritt: 2 };
-  const roh = max / 2;
-  const p = 10 ** Math.floor(Math.log10(roh));
-  const schritt = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= roh) ?? 10 * p;
-  return { oben: Math.ceil(max / schritt) * schritt, schritt };
-}
-
 /** Säule mit 4 px runder Kappe oben, eckig an der Grundlinie */
 function saeule(x: number, y: number, b: number, h: number): string {
   const r = Math.min(4, b / 2, h);
@@ -67,7 +60,7 @@ function Aktivitaet({ tage }: { tage: TagesAktivitaet[] }) {
   const [aktiv, setAktiv] = useState<number | null>(null);
   const werte = tage.map((t) => t.karten + t.uebungen);
   const max = Math.max(0, ...werte);
-  const { oben, schritt } = achsenMax(max);
+  const { oben, schritt } = achse(max);
   const links = 28;
   const hoehe = 150;
   const unten = 26;
@@ -110,12 +103,8 @@ function Aktivitaet({ tage }: { tage: TagesAktivitaet[] }) {
               key={t.tag}
               className="diagramm__mark"
               data-aktiv={aktiv === i}
-              tabIndex={0}
-              aria-label={`${wochentag(t.tag)} ${kurzDatum(t.tag)}: ${t.karten} Karten, ${t.uebungen} Übungen`}
               onPointerEnter={() => setAktiv(i)}
               onPointerLeave={() => setAktiv((a) => (a === i ? null : a))}
-              onFocus={() => setAktiv(i)}
-              onBlur={() => setAktiv((a) => (a === i ? null : a))}
             >
               <rect className="diagramm__treffer" x={links + i * band} y={0} width={band} height={hoehe} />
               {v > 0 && <path className="diagramm__saeule" d={saeule(x, y(v), b, y(0) - y(v))} />}
@@ -179,6 +168,15 @@ function Kalender({ wochen }: { wochen: KalenderTag[][] }) {
   const heute = wochen.flat().filter((d) => !d.zukunft).pop();
   const tip = wochen.flat().find((d) => d.tag === aktiv) ?? heute;
   const label = `Lerntage der letzten ${WOCHEN} Wochen: an ${gelernt.length} Tagen gelernt`;
+  // Monatsnamen über der ersten Woche eines Monats, nur wenn Platz bis zum vorigen ist (bei 360 px sonst Überlappung)
+  const monate: { tag: string; wi: number; text: string }[] = [];
+  wochen.forEach((w, wi) => {
+    const tag = w[0]!.tag;
+    if (wi > 0 && tag.slice(5, 7) === wochen[wi - 1]![0]!.tag.slice(5, 7)) return;
+    const vorher = monate[monate.length - 1];
+    if (vorher && (wi - vorher.wi) * (zelle + luecke) < 30) return;
+    monate.push({ tag, wi, text: new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { month: 'short', timeZone: 'UTC' }) });
+  });
 
   return (
     <div className="diagramm" ref={ref}>
@@ -194,13 +192,13 @@ function Kalender({ wochen }: { wochen: KalenderTag[][] }) {
             {WOCHENTAGE[d]}
           </text>
         ))}
+        {monate.map((m) => (
+          <text key={m.tag} className="diagramm__achse" x={links + m.wi * (zelle + luecke)} y={10}>
+            {m.text}
+          </text>
+        ))}
         {wochen.map((w, wi) => (
           <g key={w[0]!.tag}>
-            {(wi === 0 || w[0]!.tag.slice(8) <= '07') && (
-              <text className="diagramm__achse" x={links + wi * (zelle + luecke)} y={10}>
-                {new Date(`${w[0]!.tag}T12:00:00Z`).toLocaleDateString('de-AT', { month: 'short', timeZone: 'UTC' })}
-              </text>
-            )}
             {w.map((d, di) =>
               d.zukunft ? null : (
                 <rect
@@ -329,7 +327,7 @@ function Verlauf({ eintraege }: { eintraege: PruefungsEintrag[] }) {
 }
 
 /** IDs und Ziele, die zu einem Fach gehören (für den Fach-Filter). */
-function fachFilter(fach: IndexSubject, themen: StatThema[], proben: (pfad: string) => Probe | null) {
+function filterFuer(fach: IndexSubject, themen: StatThema[], proben: (pfad: string) => Probe | null) {
   const ids = new Set<string>();
   for (const t of themen) for (const x of [...t.topic.karten, ...t.topic.uebungen]) if (x.id) ids.add(x.id);
   const probeZiele = new Set<string>();
@@ -337,7 +335,7 @@ function fachFilter(fach: IndexSubject, themen: StatThema[], proben: (pfad: stri
     if (p.id) probeZiele.add(`probe:${p.id}`);
     for (const a of proben(p.pfad)?.aufgaben ?? []) if (a.id) ids.add(a.id);
   }
-  return (e: Ereignis) => (e.art === 'pruefung' ? e.ziel.startsWith(`${fach.id}:`) || probeZiele.has(e.ziel) : ids.has(e.ziel));
+  return fachFilter(fach.id, ids, probeZiele);
 }
 
 export function Statistik() {
@@ -362,7 +360,7 @@ export function Statistik() {
     return out;
   }, [index, topics, fach]);
 
-  const ev = useMemo(() => (fach ? ereignisse.filter(fachFilter(fach, themen, proben)) : ereignisse), [ereignisse, fach, themen, proben]);
+  const ev = useMemo(() => (fach ? ereignisse.filter(filterFuer(fach, themen, proben)) : ereignisse), [ereignisse, fach, themen, proben]);
   const tage = useMemo(() => aktivitaetProTag(ev, TAGE, jetzt), [ev, jetzt]);
   const kalender = useMemo(() => glutKalender(ev, WOCHEN, jetzt), [ev, jetzt]);
   const quoten = useMemo(() => trefferquote(ev, themen), [ev, themen]);
@@ -438,7 +436,8 @@ export function Statistik() {
           <section className="statistik__abschnitt" aria-labelledby="st-quote">
             <h2 id="st-quote" className="abschnitt-titel">Trefferquote</h2>
             <p className="statistik__unter">Karten: nicht „Nochmal“ · Übungen: richtig gelöst</p>
-            {quoten.map((f) => (
+            {quoten.filter((f) => f.kapitel.length > 0).length === 0 && <p className="lead">Noch keine Themen mit Unterlagen.</p>}
+            {quoten.filter((f) => f.kapitel.length > 0).map((f) => (
               <div key={f.fachId} className="quote-fach">
                 {!fach && <h3 className="quote-fach__name">{f.fachName}</h3>}
                 <ul className="quote-liste">

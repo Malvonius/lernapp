@@ -86,6 +86,16 @@ export async function buildIndex(
     }
   }
 
+  // Proben-IDs müssen eindeutig sein, auch gegenüber Themen-IDs (Ergebnisse hängen an `probe:<id>`).
+  const dateiIds = new Map<string, string[]>(); // id → Pfade
+  for (const f of all) if (f.topic.id) dateiIds.set(f.topic.id, [...(dateiIds.get(f.topic.id) ?? []), f.pfad]);
+  for (const f of allProben) if (f.probe.id) dateiIds.set(f.probe.id, [...(dateiIds.get(f.probe.id) ?? []), f.pfad]);
+  const probenPfade = new Set(allProben.map((f) => f.pfad));
+  for (const [id, pfade] of dateiIds) {
+    if (pfade.length < 2 || !pfade.some((x) => probenPfade.has(x))) continue;
+    for (const x of pfade) dupErrors.set(x, [...(dupErrors.get(x) ?? []), `Probe-ID ${id} doppelt (${pfade.join(', ')})`]);
+  }
+
   const toIndexTopic = (f: TopicFile, titel?: string): IndexTopic => ({
     id: f.topic.id || null,
     titel: titel ?? (f.topic.titel || f.datei),

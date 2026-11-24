@@ -126,3 +126,12 @@ describe('letztesErgebnis', () => {
     expect(letztesErgebnis([], 'p1')).toBeNull();
   });
 });
+
+describe('note mit ungerundeter Quote', () => {
+  it('87,996 % ist keine 1, auch wenn die Anzeige rundet', () => {
+    const a = bewerte([ex('eingabe', 87.996, 'u-a'), ex('eingabe', 12.004, 'u-b')], new Map([[0, { art: 'auto', richtig: true } as Antwort]]));
+    expect(a.prozent).toBeCloseTo(87.996, 6);
+    expect(note(a.prozent, SCHLUESSEL)).toBe(2);
+    expect(formatProzent(a.prozent)).toBe('87,9 %');
+  });
+});

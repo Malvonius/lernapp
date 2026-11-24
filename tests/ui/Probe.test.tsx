@@ -55,19 +55,23 @@ async function starte(opts: { ohneSchluessel?: boolean } = {}) {
   await screen.findByText(/Aufgabe 1 von 3/);
 }
 
-/** eingabe richtig, mc falsch, offen teilweise → 4 + 0 + 2,5 = 6,5 von 12 */
+/** Während der Probe: eingabe 8 (richtig), mc dritte Option (falsch), offen mit Notizen. Kein Feedback. */
 async function bearbeite() {
   fireEvent.change(screen.getByLabelText('Deine Antwort'), { target: { value: '8' } });
-  klick('Prüfen');
   klick('Nächste Aufgabe');
   await screen.findByText(/Aufgabe 2 von 3/);
   // dritte Option (−sin x) ist falsch
   fireEvent.click(screen.getAllByRole('checkbox')[2]!);
-  klick('Prüfen');
   klick('Nächste Aufgabe');
   await screen.findByText(/Aufgabe 3 von 3/);
-  klick('Lösung zeigen');
-  fireEvent.click(screen.getByRole('button', { name: /^Teilweise/ }));
+  fireEvent.change(screen.getByLabelText('Deine Lösung'), { target: { value: 'x = ±1, Tiefpunkt bei 1' } });
+}
+
+/** Während der Probe darf nichts verraten werden */
+function keinFeedback() {
+  expect(screen.queryByText(/^Richtig$|Nicht richtig/)).toBeNull();
+  expect(screen.queryByText(/Lösung:|Hochpunkt|Tiefpunkt \(/)).toBeNull();
+  expect(screen.queryByRole('button', { name: /Prüfen|Lösung zeigen|Volle Punkte|Teilweise/ })).toBeNull();
 }
 
 describe('Fach: Probe-Schularbeiten', () => {
@@ -104,27 +108,51 @@ describe('Probe', () => {
     expect(screen.getByRole('timer')).toHaveTextContent('20:00');
   });
 
-  it('bewertet automatisch und per Selbsteinschätzung, zeigt Note mit Schlüssel und speichert Ereignisse', async () => {
+  it('während des Schreibens: kein Richtig/Falsch, keine Lösung, keine Ereignisse', async () => {
+    await starte();
+    await bearbeite();
+    keinFeedback();
+    klick('Vorherige Aufgabe');
+    klick('Vorherige Aufgabe');
+    await screen.findByText(/Aufgabe 1 von 3/);
+    keinFeedback();
+    expect((await getAllEvents(db)).length).toBe(0);
+  });
+
+  it('nach der Abgabe: automatische Punkte, Selbsteinschätzung auf der Ergebnisseite ändert Punkte und Note', async () => {
     await starte();
     await bearbeite();
     klick('Abgeben');
     expect(await screen.findByRole('heading', { level: 1, name: 'Ergebnis' })).toBeInTheDocument();
-    expect(screen.getByText(/6,5 von 12/)).toBeInTheDocument();
+    // offen noch nicht eingeschätzt: 4 + 0 + 0
+    expect(screen.getByText('4 von 12')).toBeInTheDocument();
+    const einschaetzen = screen.getByRole('region', { name: 'Selbst einschätzen' });
+    expect(einschaetzen).toHaveTextContent(/Tiefpunkt bei 1/); // eigene Lösung
+    expect(einschaetzen).toHaveTextContent(/Hochpunkt/); // Musterlösung
+    fireEvent.click(within(einschaetzen).getByRole('button', { name: /^Teilweise/ }));
+    expect(screen.getByText('6,5 von 12')).toBeInTheDocument();
     expect(screen.getByText('54,1 %')).toBeInTheDocument();
     expect(screen.getByText(/Note 4/)).toBeInTheDocument();
-    // falsch und teilweise: zum Nachsehen gelistet, die richtige nicht
+    fireEvent.click(within(einschaetzen).getByRole('button', { name: /^Voll/ }));
+    expect(screen.getByText('9 von 12')).toBeInTheDocument();
+    expect(screen.getByText(/Note 2/)).toBeInTheDocument();
+    // erst jetzt gespeichert
+    expect((await getAllEvents(db)).length).toBe(0);
+    klick('Ergebnis speichern');
+    expect(await screen.findByText('Ergebnis gespeichert')).toBeInTheDocument();
+    expect(within(einschaetzen).getByRole('button', { name: /^Voll/ })).toBeDisabled();
+
     const liste = screen.getByRole('list', { name: 'Nochmal ansehen' });
-    expect(liste.querySelectorAll(':scope > li')).toHaveLength(2);
-    expect(liste).toHaveTextContent(/2,5 von 5/);
+    expect(liste.querySelectorAll(':scope > li')).toHaveLength(1);
     expect(liste).toHaveTextContent(/0 von 3/);
 
     await waitFor(async () => {
       const ev = await getAllEvents(db);
-      expect(ev.find((e) => e.art === 'pruefung')).toMatchObject({ ziel: ZIEL, punkte: 6.5, max: 12 });
+      expect(ev.find((e) => e.art === 'pruefung')).toMatchObject({ ziel: ZIEL, punkte: 9, max: 12 });
       expect(ev.filter((e) => e.art === 'uebung').map((e) => [e.ziel, e.richtig]).sort()).toEqual([
         ['u-pr0001', true],
         ['u-pr0002', false],
-        ['u-pr0003', false],
+        ['u-pr0003', true],
       ]);
     });
   });
@@ -134,24 +162,32 @@ describe('Probe', () => {
     await bearbeite();
     klick('Abgeben');
     expect(await screen.findByRole('heading', { level: 1, name: 'Ergebnis' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Teilweise/ }));
     expect(screen.getByText('Kein Notenschlüssel hinterlegt')).toBeInTheDocument();
     expect(screen.queryByText(/Note \d/)).toBeNull();
+    klick('Ergebnis speichern');
+    expect(await screen.findByText('Ergebnis gespeichert')).toBeInTheDocument();
   });
 
-  it('vor und zurück: beantwortete Aufgaben behalten ihren Stand', async () => {
+  it('vor und zurück: Antworten bleiben erhalten und sind änderbar', async () => {
     await starte();
     fireEvent.change(screen.getByLabelText('Deine Antwort'), { target: { value: '8' } });
-    klick('Prüfen');
     klick('Nächste Aufgabe');
     await screen.findByText(/Aufgabe 2 von 3/);
     klick('Vorherige Aufgabe');
     await screen.findByText(/Aufgabe 1 von 3/);
-    expect(screen.getByLabelText('Deine Antwort')).toHaveValue('8');
-    expect(screen.getByLabelText('Deine Antwort')).toBeDisabled();
-    expect(screen.getByText('Richtig')).toBeInTheDocument();
+    const feld = screen.getByLabelText('Deine Antwort');
+    expect(feld).toHaveValue('8');
+    expect(feld).toBeEnabled();
+    fireEvent.change(feld, { target: { value: '9' } });
+    expect(screen.getByRole('button', { name: 'Aufgabe 1, beantwortet' })).toBeInTheDocument();
     // direkt springen über die Aufgabenleiste
     fireEvent.click(screen.getByRole('button', { name: /Aufgabe 3/ }));
     expect(await screen.findByText(/Aufgabe 3 von 3/)).toBeInTheDocument();
+    klick('Abgeben');
+    klick('Trotzdem abgeben');
+    // geänderte Antwort 9 ist falsch
+    expect(await screen.findByText('0 von 12')).toBeInTheDocument();
   });
 
   it('mit offenen Aufgaben fragt Abgeben nach; Weiterarbeiten bleibt in der Probe', async () => {
@@ -163,21 +199,22 @@ describe('Probe', () => {
     klick('Abgeben');
     klick('Trotzdem abgeben');
     expect(await screen.findByRole('heading', { level: 1, name: 'Ergebnis' })).toBeInTheDocument();
-    expect(screen.getByText(/0 von 12/)).toBeInTheDocument();
+    expect(screen.getByText('0 von 12')).toBeInTheDocument();
+    // nichts einzuschätzen: sofort gespeichert
+    await waitFor(async () => expect((await getAllEvents(db)).find((e) => e.art === 'pruefung')).toMatchObject({ punkte: 0, max: 12 }));
   });
 
   it('Zeitablauf gibt automatisch ab; offene Aufgaben zählen 0', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     await starte();
     fireEvent.change(screen.getByLabelText('Deine Antwort'), { target: { value: '8' } });
-    klick('Prüfen');
     await act(async () => {
       vi.advanceTimersByTime(20 * 60_000 + 1000);
     });
     vi.useRealTimers();
     expect(await screen.findByRole('heading', { level: 1, name: 'Ergebnis' })).toBeInTheDocument();
     expect(screen.getByText(/Die Zeit ist abgelaufen/)).toBeInTheDocument();
-    expect(screen.getByText(/4 von 12/)).toBeInTheDocument();
+    expect(screen.getByText('4 von 12')).toBeInTheDocument();
     await waitFor(async () => expect((await getAllEvents(db)).find((e) => e.art === 'pruefung')).toMatchObject({ ziel: ZIEL, punkte: 4, max: 12 }));
   });
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Exercise, IndexSubject, Probe as ProbeDaten } from '../../format/types';
-import { bewerte, formatProzent, formatPunkte, note, probeZiel, type Antwort, type ProbeAuswertung } from '../../lib/probe';
-import { useAppData } from '../../state/AppData';
+import { pruefeEingabe, pruefeMc } from '../../lib/check';
+import { bewerte, formatProzent, formatPunkte, note, probeZiel, teilPunkte, type Antwort, type Stufe } from '../../lib/probe';
+import { useAppData, type NeuesEreignis } from '../../state/AppData';
 import { Markdown } from '../components/Markdown';
-import { Uebung } from '../components/Uebung';
 
 /** Österreichische Notennamen */
 const NOTEN_NAME: Record<number, string> = { 1: 'Sehr gut', 2: 'Gut', 3: 'Befriedigend', 4: 'Genügend', 5: 'Nicht genügend' };
@@ -85,45 +85,164 @@ export function Probe() {
   return <ProbeAblauf key={eintrag.pfad} fach={fach} probe={probe} />;
 }
 
+/** Was während der Probe eingegeben wurde: Text (eingabe, schritte, offen) bzw. gewählte Optionen (mc). */
+interface Eingabe {
+  text: string;
+  gewaehlt: number[];
+}
+const LEER: Eingabe = { text: '', gewaehlt: [] };
+
+const istSelbst = (a: Exercise) => a.typ === 'schritte' || a.typ === 'offen';
+const beantwortet = (a: Exercise, e: Eingabe | undefined) => (e ? (a.typ === 'mc' ? e.gewaehlt.length > 0 : e.text.trim() !== '') : false);
+
+const STUFEN: { s: Stufe; text: string }[] = [
+  { s: 'voll', text: 'Voll' },
+  { s: 'teilweise', text: 'Teilweise' },
+  { s: 'keine', text: 'Keine' },
+];
+
+/** Eine Aufgabe während der Probe: nur Eingabe, kein Prüfen, keine Lösung. */
+function AufgabeFeld({ a, wert, onChange }: { a: Exercise; wert: Eingabe; onChange: (e: Eingabe) => void }) {
+  return (
+    <article className="uebung probe-feld">
+      <div className="uebung__frage">
+        <Markdown text={a.frage} />
+      </div>
+      {a.typ === 'eingabe' && (
+        <input
+          type="text"
+          className="uebung__eingabe"
+          aria-label="Deine Antwort"
+          autoComplete="off"
+          value={wert.text}
+          onChange={(e) => onChange({ ...wert, text: e.target.value })}
+        />
+      )}
+      {a.typ === 'mc' && (
+        <ul className="uebung__optionen">
+          {(a.optionen ?? []).map((o, i) => (
+            <li key={i} className="uebung__option">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={wert.gewaehlt.includes(i)}
+                  onChange={() =>
+                    onChange({ ...wert, gewaehlt: wert.gewaehlt.includes(i) ? wert.gewaehlt.filter((x) => x !== i) : [...wert.gewaehlt, i] })
+                  }
+                />
+                <Markdown text={o} />
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      {istSelbst(a) && (
+        <>
+          <textarea className="uebung__eingabe" aria-label="Deine Lösung" rows={6} value={wert.text} onChange={(e) => onChange({ ...wert, text: e.target.value })} />
+          <p className="probe-feld__hinweis">Die Musterlösung siehst du nach der Abgabe; dort schätzt du deine Punkte selbst ein.</p>
+        </>
+      )}
+    </article>
+  );
+}
+
+interface Abgabe {
+  /** eingabe/mc: automatisch geprüft */
+  auto: Map<number, boolean>;
+  eingaben: Map<number, Eingabe>;
+  durchZeit: boolean;
+}
+
 function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten }) {
   const { record } = useAppData();
   const aufgaben = useMemo(() => probe.aufgaben.map((a, nr) => ({ a, nr })).filter(({ a }) => !a.zurueckgezogen), [probe]);
   const max = aufgaben.reduce((s, { a }) => s + (a.punkte ?? 0), 0);
 
   const [lauf, setLauf] = useState<Lauf | null>(null);
-  const [durchgang, setDurchgang] = useState(0);
   const [pos, setPos] = useState(0);
-  const [antworten, setAntworten] = useState<Map<number, Antwort>>(new Map());
-  const antwortenRef = useRef(antworten);
+  const [eingaben, setEingaben] = useState<Map<number, Eingabe>>(new Map());
+  const eingabenRef = useRef(eingaben);
   const [rest, setRest] = useState(0);
   const [nachfrage, setNachfrage] = useState(false);
-  const [auswertung, setAuswertung] = useState<ProbeAuswertung | null>(null);
-  const [abgelaufen, setAbgelaufen] = useState(false);
+  const [abgabe, setAbgabe] = useState<Abgabe | null>(null);
+  const [stufen, setStufen] = useState<Map<number, Stufe>>(new Map());
+  const [gespeichert, setGespeichert] = useState(false);
   const [speicherFehler, setSpeicherFehler] = useState(false);
-  const abgegeben = useRef(false);
 
-  const antworte = (nr: number, a: Antwort) => {
-    const neu = new Map(antwortenRef.current).set(nr, a);
-    antwortenRef.current = neu;
-    setAntworten(neu);
+  // Refs: Speichern beim Verlassen (Unmount) liest den aktuellen Stand; nach dem Unmount kein setState.
+  const abgabeRef = useRef<Abgabe | null>(null);
+  const stufenRef = useRef(stufen);
+  const gespeichertRef = useRef(false);
+  const aktiv = useRef(true);
+
+  const setzeEingabe = (nr: number, e: Eingabe) => {
+    const neu = new Map(eingabenRef.current).set(nr, e);
+    eingabenRef.current = neu;
+    setEingaben(neu);
   };
+
+  /** Alle Antworten als Bewertungs-Eingabe (auto + bisher eingeschätzte) */
+  const antwortenAus = useCallback((ab: Abgabe, st: Map<number, Stufe>) => {
+    const m = new Map<number, Antwort>();
+    for (const [nr, richtig] of ab.auto) m.set(nr, { art: 'auto', richtig });
+    for (const [nr, s] of st) m.set(nr, { art: 'selbst', stufe: s });
+    return m;
+  }, []);
+
+  /** Schreibt erst jetzt die Ereignisse: je bewerteter Aufgabe `uebung`, dann `pruefung`. Genau einmal. */
+  const speichere = useCallback(
+    (ab: Abgabe, st: Map<number, Stufe>) => {
+      if (gespeichertRef.current) return;
+      gespeichertRef.current = true;
+      if (aktiv.current) setGespeichert(true);
+      const a = bewerte(probe.aufgaben, antwortenAus(ab, st));
+      const ereignisse: NeuesEreignis[] = [];
+      for (const { a: aufgabe, nr } of aufgaben) {
+        if (!aufgabe.id) continue;
+        const richtig = ab.auto.has(nr) ? ab.auto.get(nr)! : st.has(nr) ? st.get(nr) === 'voll' : null;
+        if (richtig !== null) ereignisse.push({ art: 'uebung', ziel: aufgabe.id, richtig });
+      }
+      ereignisse.push({ art: 'pruefung', ziel: probeZiel(probe.id), punkte: a.punkte, max: a.max });
+      void ereignisse
+        .reduce<Promise<unknown>>((kette, e) => kette.then(() => record(e)), Promise.resolve())
+        .catch(() => {
+          if (aktiv.current) setSpeicherFehler(true);
+        });
+    },
+    [aufgaben, antwortenAus, probe, record],
+  );
+
+  useEffect(() => {
+    aktiv.current = true;
+    return () => {
+      aktiv.current = false;
+      // Ergebnisseite verlassen, ohne zu speichern: mit dem aktuellen Stand speichern (nicht Eingeschätztes zählt 0)
+      if (abgabeRef.current && !gespeichertRef.current) speichere(abgabeRef.current, stufenRef.current);
+    };
+  }, [speichere]);
 
   const gibAb = useCallback(
     (durchZeit: boolean) => {
-      if (abgegeben.current) return;
-      abgegeben.current = true;
-      const a = bewerte(probe.aufgaben, antwortenRef.current);
-      setAbgelaufen(durchZeit);
+      if (abgabeRef.current) return;
+      const auto = new Map<number, boolean>();
+      for (const { a, nr } of aufgaben) {
+        const e = eingabenRef.current.get(nr);
+        if (a.typ === 'eingabe') auto.set(nr, beantwortet(a, e) && pruefeEingabe(a, e!.text));
+        else if (a.typ === 'mc') auto.set(nr, beantwortet(a, e) && pruefeMc(a, e!.gewaehlt));
+      }
+      const ab: Abgabe = { auto, eingaben: eingabenRef.current, durchZeit };
+      abgabeRef.current = ab;
       setNachfrage(false);
-      setAuswertung(a);
-      void Promise.resolve(record({ art: 'pruefung', ziel: probeZiel(probe.id), punkte: a.punkte, max: a.max })).catch(() => setSpeicherFehler(true));
+      setAbgabe(ab);
+      // Nichts selbst einzuschätzen: gleich speichern
+      if (!aufgaben.some(({ a, nr }) => istSelbst(a) && beantwortet(a, ab.eingaben.get(nr)))) speichere(ab, new Map());
     },
-    [probe, record],
+    [aufgaben, speichere],
   );
 
   // Timer: Restzeit mitführen, bei Ablauf automatisch abgeben.
   useEffect(() => {
-    if (!lauf || auswertung) return;
+    if (!lauf || abgabe) return;
     const tick = () => {
       const r = lauf.ende - Date.now();
       setRest(Math.max(0, r));
@@ -132,25 +251,35 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [lauf, auswertung, gibAb]);
+  }, [lauf, abgabe, gibAb]);
 
   // Neue Aufgabe: nach oben, damit die Frage sichtbar ist
   useEffect(() => {
     if (lauf) window.scrollTo?.({ top: 0 });
-  }, [pos, lauf]);
+  }, [pos, lauf, abgabe]);
 
   const starte = () => {
+    if (abgabeRef.current && !gespeichertRef.current) speichere(abgabeRef.current, stufenRef.current);
     const dauer = probe.dauerMin * 60_000;
-    abgegeben.current = false;
-    antwortenRef.current = new Map();
-    setAntworten(new Map());
+    abgabeRef.current = null;
+    gespeichertRef.current = false;
+    eingabenRef.current = new Map();
+    stufenRef.current = new Map();
+    setEingaben(new Map());
+    setStufen(new Map());
     setPos(0);
-    setAuswertung(null);
-    setAbgelaufen(false);
+    setAbgabe(null);
+    setGespeichert(false);
     setSpeicherFehler(false);
     setRest(dauer);
-    setDurchgang((d) => d + 1);
     setLauf({ ende: Date.now() + dauer, dauer });
+  };
+
+  const waehle = (nr: number, s: Stufe) => {
+    if (gespeichertRef.current) return;
+    const neu = new Map(stufenRef.current).set(nr, s);
+    stufenRef.current = neu;
+    setStufen(neu);
   };
 
   const zurueck = (
@@ -186,9 +315,10 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
           </section>
         )}
         <p className="probe__erklaerung">
-          Der Timer läuft ab dem Start; ist die Zeit um, wird automatisch abgegeben. Eingaben und Auswahlaufgaben prüft die App,
-          bei offenen Aufgaben schätzt du deine Punkte nach der Lösung selbst ein.
-          {probe.notenschluessel ? ' Am Ende siehst du die Note nach dem hinterlegten Notenschlüssel.' : ' Für diese Probe ist kein Notenschlüssel hinterlegt: du bekommst Punkte und Prozent, aber keine Note.'}
+          Wie bei der echten Schularbeit: Während des Schreibens gibt es keine Rückmeldung, Antworten kannst du bis zur Abgabe
+          ändern. Ist die Zeit um, wird automatisch abgegeben. Danach prüft die App Eingaben und Auswahlaufgaben, offene Aufgaben
+          schätzt du mit der Musterlösung selbst ein.
+          {probe.notenschluessel ? ' Die Note kommt aus dem hinterlegten Notenschlüssel.' : ' Für diese Probe ist kein Notenschlüssel hinterlegt: du bekommst Punkte und Prozent, aber keine Note.'}
         </p>
         <div className="probe__aktionen">
           <button type="button" className="button probe__start" onClick={starte} disabled={aufgaben.length === 0}>
@@ -201,17 +331,21 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
   }
 
   // --- Ergebnis ---
-  if (auswertung) {
+  if (abgabe) {
+    const auswertung = bewerte(probe.aufgaben, antwortenAus(abgabe, stufen));
     const n = note(auswertung.prozent, probe.notenschluessel);
-    const nachsehen = auswertung.aufgaben.filter((e) => e.punkte < e.max);
+    const nrAnzeige = (nr: number) => aufgaben.findIndex((x) => x.nr === nr) + 1;
+    const selbst = aufgaben.filter(({ a, nr }) => istSelbst(a) && beantwortet(a, abgabe.eingaben.get(nr)));
+    const offenEinzuschaetzen = selbst.filter(({ nr }) => !stufen.has(nr)).length;
+    const nachsehen = auswertung.aufgaben.filter((e) => e.punkte < e.max && !(selbst.some((s) => s.nr === e.nr) && !stufen.has(e.nr)));
     return (
       <Rahmen fach={fach}>
         <p className="probe__fach">{probe.titel}</p>
         <h1>Ergebnis</h1>
-        {abgelaufen && <p className="banner">Die Zeit ist abgelaufen. Die Probe wurde automatisch abgegeben, offene Aufgaben zählen 0 Punkte.</p>}
-        <div className="probe-ergebnis">
+        {abgabe.durchZeit && <p className="banner">Die Zeit ist abgelaufen. Die Probe wurde automatisch abgegeben, offene Aufgaben zählen 0 Punkte.</p>}
+        <div className="probe-ergebnis" aria-live="polite">
           <p className="probe-ergebnis__punkte">{`${formatPunkte(auswertung.punkte)} von ${formatPunkte(auswertung.max)}`}</p>
-          <p className="probe-ergebnis__einheit">Punkten</p>
+          <p className="probe-ergebnis__einheit">Punkten{offenEinzuschaetzen > 0 ? ' (ohne Selbsteinschätzung)' : ''}</p>
           <p className="probe-ergebnis__prozent">{formatProzent(auswertung.prozent)}</p>
           {n !== null ? (
             <p className="probe-ergebnis__note">
@@ -225,13 +359,77 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
           </div>
         </div>
 
+        {selbst.length > 0 && (
+          <section className="probe-einschaetzen" aria-labelledby="probe-einschaetzen-h">
+            <h2 className="abschnitt-titel" id="probe-einschaetzen-h">Selbst einschätzen</h2>
+            <p className="statistik__unter probe-einschaetzen__erklaerung">
+              Vergleiche deine Lösung mit der Musterlösung und wähle, wie viele Punkte du bekommen hättest.
+            </p>
+            <ol className="probe-einschaetzen__liste">
+              {selbst.map(({ a, nr }) => {
+                const gewaehlt = stufen.get(nr);
+                const wert: Record<Stufe, number> = { voll: a.punkte ?? 0, teilweise: teilPunkte(a.punkte ?? 0), keine: 0 };
+                return (
+                  <li key={nr} className="probe-einschaetzen__aufgabe" data-gewaehlt={gewaehlt ?? ''}>
+                    <p className="probe-nachsehen__kopf">
+                      Aufgabe {nrAnzeige(nr)} · {formatPunkte(a.punkte ?? 0)} Punkte
+                    </p>
+                    <Markdown text={a.frage} />
+                    <div className="probe-einschaetzen__vergleich">
+                      <div>
+                        <h3>Deine Lösung</h3>
+                        <p className="probe-einschaetzen__eigene">{abgabe.eingaben.get(nr)?.text}</p>
+                      </div>
+                      <div>
+                        <h3>Musterlösung</h3>
+                        <Markdown text={loesung(a) || 'Keine Musterlösung hinterlegt.'} />
+                      </div>
+                    </div>
+                    <div className="stufenwahl__knoepfe" role="group" aria-label={`Punkte für Aufgabe ${nrAnzeige(nr)}`}>
+                      {STUFEN.map(({ s, text }) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className={`stufenwahl__knopf stufenwahl__knopf--${s}`}
+                          aria-pressed={gewaehlt === s}
+                          disabled={gespeichert}
+                          onClick={() => waehle(nr, s)}
+                        >
+                          {text}
+                          <small>{formatPunkte(wert[s])} P.</small>
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            {gespeichert ? (
+              <p className="probe-einschaetzen__status" role="status">
+                Ergebnis gespeichert
+              </p>
+            ) : (
+              <div className="probe-einschaetzen__speichern">
+                <button type="button" className="button" onClick={() => speichere(abgabe, stufenRef.current)}>
+                  Ergebnis speichern
+                </button>
+                {offenEinzuschaetzen > 0 && (
+                  <p className="probe-feld__hinweis">
+                    Noch {offenEinzuschaetzen} {offenEinzuschaetzen === 1 ? 'Aufgabe' : 'Aufgaben'} ohne Einschätzung; sie zählen 0 Punkte.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         <h2 className="abschnitt-titel">Aufgaben</h2>
         <ol className="probe-punkte">
-          {auswertung.aufgaben.map((e, i) => (
-            <li key={e.nr} data-stufe={e.stufe}>
-              <span>Aufgabe {i + 1}</span>
+          {auswertung.aufgaben.map((e) => (
+            <li key={e.nr} data-stufe={selbst.some((s) => s.nr === e.nr) && !stufen.has(e.nr) ? 'einschaetzen' : e.stufe}>
+              <span>Aufgabe {nrAnzeige(e.nr)}</span>
               <span className="probe-punkte__wert">
-                {formatPunkte(e.punkte)} von {formatPunkte(e.max)}
+                {selbst.some((s) => s.nr === e.nr) && !stufen.has(e.nr) ? 'noch einschätzen' : `${formatPunkte(e.punkte)} von ${formatPunkte(e.max)}`}
               </span>
             </li>
           ))}
@@ -244,13 +442,17 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
               {nachsehen.map((e) => {
                 const a = probe.aufgaben[e.nr]!;
                 const l = loesung(a);
+                const eigene = abgabe.eingaben.get(e.nr);
+                const eigeneText =
+                  a.typ === 'mc' ? (eigene?.gewaehlt ?? []).map((i) => a.optionen?.[i] ?? '').join('; ') : (eigene?.text.trim() ?? '');
                 return (
                   <li key={e.nr}>
                     <p className="probe-nachsehen__kopf">
-                      Aufgabe {aufgaben.findIndex((x) => x.nr === e.nr) + 1} · {formatPunkte(e.punkte)} von {formatPunkte(e.max)} Punkten
-                      {e.stufe === 'offen' ? ' (nicht beantwortet)' : ''}
+                      Aufgabe {nrAnzeige(e.nr)} · {formatPunkte(e.punkte)} von {formatPunkte(e.max)} Punkten
+                      {beantwortet(a, eigene) ? '' : ' (nicht beantwortet)'}
                     </p>
                     <Markdown text={a.frage} />
+                    {a.typ !== 'mc' && eigeneText && <p className="probe-nachsehen__eigene">Deine Antwort: {eigeneText}</p>}
                     {l && (
                       <details className="probe-nachsehen__loesung">
                         <summary>Lösung ansehen</summary>
@@ -269,7 +471,7 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
           </p>
         )}
         <div className="probe__aktionen">
-          <button type="button" className="button" onClick={starte}>
+          <button type="button" className="button button--quiet" onClick={starte}>
             Nochmal schreiben
           </button>
           {zurueck}
@@ -279,7 +481,7 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
   }
 
   // --- Aufgaben ---
-  const offen = aufgaben.filter(({ nr }) => !antworten.has(nr)).length;
+  const offen = aufgaben.filter(({ a, nr }) => !beantwortet(a, eingaben.get(nr))).length;
   const aktuell = aufgaben[pos]!;
   const anteil = lauf.dauer > 0 ? rest / lauf.dauer : 0;
   const knapp = rest <= 5 * 60_000;
@@ -324,20 +526,23 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
 
       <nav className="probe-leiste" aria-label="Aufgaben">
         <ol>
-          {aufgaben.map(({ nr }, i) => (
-            <li key={nr}>
-              <button
-                type="button"
-                className="probe-leiste__knopf"
-                aria-current={i === pos ? 'step' : undefined}
-                data-beantwortet={antworten.has(nr)}
-                aria-label={`Aufgabe ${i + 1}, ${antworten.has(nr) ? 'beantwortet' : 'offen'}`}
-                onClick={() => setPos(i)}
-              >
-                {i + 1}
-              </button>
-            </li>
-          ))}
+          {aufgaben.map(({ a, nr }, i) => {
+            const fertig = beantwortet(a, eingaben.get(nr));
+            return (
+              <li key={nr}>
+                <button
+                  type="button"
+                  className="probe-leiste__knopf"
+                  aria-current={i === pos ? 'step' : undefined}
+                  data-beantwortet={fertig}
+                  aria-label={`Aufgabe ${i + 1}, ${fertig ? 'beantwortet' : 'offen'}`}
+                  onClick={() => setPos(i)}
+                >
+                  {i + 1}
+                </button>
+              </li>
+            );
+          })}
         </ol>
       </nav>
 
@@ -345,25 +550,17 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
         Aufgabe {pos + 1} von {aufgaben.length} · {formatPunkte(aktuell.a.punkte ?? 0)} {aktuell.a.punkte === 1 ? 'Punkt' : 'Punkte'}
       </p>
 
-      {/* Alle Aufgaben bleiben gemountet (nur verborgen), damit vor/zurück den Stand behält */}
-      {aufgaben.map(({ a, nr }, i) => (
-        <div key={`${durchgang}-${nr}`} hidden={i !== pos} className="probe-aufgabe">
-          <Uebung
-            ex={a}
-            aufzeichnen
-            onErgebnis={a.typ === 'eingabe' || a.typ === 'mc' ? (richtig) => antworte(nr, { art: 'auto', richtig }) : undefined}
-            onStufe={a.typ === 'schritte' || a.typ === 'offen' ? (stufe) => antworte(nr, { art: 'selbst', stufe }) : undefined}
-          />
-        </div>
-      ))}
+      <AufgabeFeld key={aktuell.nr} a={aktuell.a} wert={eingaben.get(aktuell.nr) ?? LEER} onChange={(e) => setzeEingabe(aktuell.nr, e)} />
 
       <div className="probe-nav">
         <button type="button" className="button button--quiet" disabled={pos === 0} onClick={() => setPos(pos - 1)}>
-          {'Vorherige '}<span className="visually-hidden">Aufgabe</span>
+          {'Vorherige '}
+          <span className="visually-hidden">Aufgabe</span>
         </button>
         {pos + 1 < aufgaben.length ? (
           <button type="button" className="button" onClick={() => setPos(pos + 1)}>
-            {'Nächste '}<span className="visually-hidden">Aufgabe</span>
+            {'Nächste '}
+            <span className="visually-hidden">Aufgabe</span>
           </button>
         ) : (
           <button type="button" className="button" onClick={abgeben}>
