@@ -23,6 +23,11 @@ Dieses Repo enthält **nur Code**. Der Lernstoff liegt in einem separaten, priva
 - Inhalte: `index.json` und Themen-Dateien werden über die GitHub-API geladen und in IndexedDB zwischengespeichert (offline nutzbar).
 - Fortschritt: jede Bewertung ist ein Ereignis; jedes Gerät schreibt nur seine Datei `_fortschritt/<gerät>.json`. Der Lernstand (FSRS) wird aus den Ereignissen aller Geräte nachgerechnet, deshalb ist er überall gleich. Hochgeladen wird gebündelt (nach 1 Minute Pause, beim Wegwischen, am Sitzungsende, wenn das Netz zurückkommt).
 
+## Probe-Schularbeiten und Statistik
+
+- **Probe-Schularbeit:** Dateien `<Fach>/_proben/*.md` im Lernstoff (Format: Lernstoff-README). In der App unter dem Fach: Timer, kein Feedback während des Schreibens, Auswertung nach Abgabe (Selbsteinschätzung bei offenen Aufgaben), Note nur mit hinterlegtem Notenschlüssel. Ergebnis wird auch beim Schließen der App gespeichert.
+- **Statistik:** Startseite → Statistik (optional pro Fach): Aktivität, Glut-Kalender, Trefferquote pro Kapitel, meist vergessene Karten, Prüfungsverlauf.
+
 ## Unterlagen hochladen
 
 Startseite → „Unterlagen hochladen“: Dateien (PDF, Word, PowerPoint, Excel, Fotos, ZIP, Text; je max. 25 MB), Fach oder „Bob entscheidet“, optional Wunsch. Die Datei landet in `_inbox/<Zeitstempel>_<Name>` mit `.meta.json`. Danach Bob im Chat: „Verarbeite die Inbox“. Das Token braucht dafür Schreibrecht (Contents: Read and write).
