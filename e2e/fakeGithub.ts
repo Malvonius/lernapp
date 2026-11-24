@@ -131,6 +131,7 @@ export async function ladeFixture(root = FIXTURE_ROOT): Promise<Map<string, stri
     for (const t of [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet]) {
       if (t.pfad) dateien.set(t.pfad, await readFile(root + t.pfad, 'utf8'));
     }
+    for (const pr of f.proben ?? []) dateien.set(pr.pfad, await readFile(root + pr.pfad, 'utf8'));
   }
   return dateien;
 }

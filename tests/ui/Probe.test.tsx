@@ -95,8 +95,9 @@ describe('Probe', () => {
   it('Startseite: Titel, Dauer, Punkte, Hinweise; Starten zeigt Aufgabe 1 mit Timer', async () => {
     oeffne(PFAD);
     expect(await screen.findByRole('heading', { level: 1, name: 'Probe-Schularbeit Differentialrechnung' })).toBeInTheDocument();
-    expect(screen.getByText(/20 Minuten/)).toBeInTheDocument();
-    expect(screen.getByText(/12 Punkte/)).toBeInTheDocument();
+    const blatt = screen.getByLabelText('20 Minuten, 12 Punkte, 3 Aufgaben');
+    expect(blatt).toHaveTextContent(/Dauer\s*20 Min/);
+    expect(blatt).toHaveTextContent(/Punkte\s*12/);
     expect(screen.getByText(/Formelsammlung und Taschenrechner/)).toBeInTheDocument();
     klick('Starten');
     expect(await screen.findByText(/Aufgabe 1 von 3/)).toBeInTheDocument();

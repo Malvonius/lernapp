@@ -210,3 +210,44 @@ test('Unterlagen hochladen: Datei und Hinweis landen in _inbox, Rückfrage von B
 
   expect(fehler).toEqual([]);
 });
+
+test('Probe-Schularbeit: starten, eine Aufgabe, abgeben, Ergebnis; Statistik öffnet ohne Fehler', async ({ page, context }) => {
+  const gh = new FakeGitHub(await ladeFixture());
+  await context.route('https://api.github.com/**', (route) => gh.handle(route));
+  const fehler = sammleFehler(page);
+  await einrichten(page);
+
+  await page.getByRole('link', { name: /Angewandte Mathematik/ }).click();
+  await page.getByRole('link', { name: /Probe-Schularbeit Differentialrechnung/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Probe-Schularbeit Differentialrechnung' })).toBeVisible();
+  await keinHorizontalesScrollen(page);
+  await page.getByRole('button', { name: 'Starten' }).click();
+  await expect(page.getByRole('timer')).toHaveText(/^(20:00|19:5\d)$/);
+  await page.getByLabel('Deine Antwort').fill('8');
+  await page.getByRole('button', { name: 'Prüfen' }).click();
+  await expect(page.getByText('Richtig', { exact: true })).toBeVisible();
+  await keinHorizontalesScrollen(page);
+  await page.getByRole('button', { name: 'Abgeben', exact: true }).click();
+  await page.getByRole('button', { name: 'Trotzdem abgeben' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ergebnis' })).toBeVisible();
+  await expect(page.getByText('4 von 12', { exact: true })).toBeVisible();
+  await expect(page.getByText('33,3 %')).toBeVisible();
+  await expect(page.getByText(/Note 5/)).toBeVisible();
+  await keinHorizontalesScrollen(page);
+
+  // Fach zeigt das letzte Ergebnis
+  await page.getByRole('link', { name: 'Zurück zu Angewandte Mathematik' }).click();
+  await expect(page.getByRole('link', { name: /Probe-Schularbeit Differentialrechnung/ })).toContainText('Zuletzt 4 von 12');
+
+  // Statistik
+  await page.getByRole('link', { name: 'Statistik zu diesem Fach' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Statistik' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Prüfungen und Proben' })).toContainText('4 von 12');
+  await expect(page.getByRole('img', { name: /Bewertungen pro Tag/ })).toBeVisible();
+  await keinHorizontalesScrollen(page);
+  await page.getByLabel('Fach').selectOption('');
+  await expect(page).toHaveURL(/#\/statistik$/);
+  await keinHorizontalesScrollen(page);
+
+  expect(fehler).toEqual([]);
+});

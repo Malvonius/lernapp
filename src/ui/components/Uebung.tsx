@@ -28,6 +28,7 @@ export interface UebungProps {
 }
 
 const STUFE_TEXT: Record<Stufe, string> = { voll: 'Volle Punkte', teilweise: 'Teilweise', keine: 'Keine Punkte' };
+const STUFE_KURZ: Record<Stufe, string> = { voll: 'Voll', teilweise: 'Teilweise', keine: 'Keine' };
 
 function Stufenwahl({ punkte, onWahl }: { punkte: number; onWahl: (s: Stufe) => void }) {
   const wert: Record<Stufe, number> = { voll: punkte, teilweise: teilPunkte(punkte), keine: 0 };
@@ -37,7 +38,7 @@ function Stufenwahl({ punkte, onWahl }: { punkte: number; onWahl: (s: Stufe) => 
       <div className="stufenwahl__knoepfe">
         {(['voll', 'teilweise', 'keine'] as const).map((s) => (
           <button key={s} type="button" className={`stufenwahl__knopf stufenwahl__knopf--${s}`} onClick={() => onWahl(s)}>
-            {STUFE_TEXT[s]}
+            {STUFE_KURZ[s]}
             <small>{formatPunkte(wert[s])} P.</small>
           </button>
         ))}

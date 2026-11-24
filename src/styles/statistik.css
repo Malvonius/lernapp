@@ -79,25 +79,11 @@
 .diagramm__linie { fill: none; stroke: var(--dv-reihe); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .diagramm__punkt { fill: var(--dv-reihe); stroke: var(--dv-flaeche); stroke-width: 2; }
 
-.diagramm__tipp {
-  position: absolute;
-  top: 0;
-  transform: translate(-50%, -100%);
-  display: grid;
-  gap: 2px;
-  min-width: 9rem;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--c-hairline);
-  border-radius: var(--r-field);
-  background: var(--c-surface);
-  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.7);
-  font-size: var(--fs-sm);
-  pointer-events: none;
-  z-index: 2;
-}
-.diagramm__tipp strong { font-size: var(--fs-md); }
-.diagramm__tipp span { color: var(--c-muted); font-size: var(--fs-xs); }
-.diagramm__tipp--fest { position: static; transform: none; justify-self: start; margin-top: var(--sp-2); width: max-content; }
+/* Ablesezeile über dem Diagramm: Wert zuerst, dann Datum und Aufschlüsselung */
+.diagramm__ablesung { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--sp-2); min-height: 1.75rem; margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--c-muted); }
+.diagramm__ablesung strong { color: var(--c-text); font-size: var(--fs-lg); font-weight: 650; }
+.diagramm__ablesung span { flex-basis: 100%; font-size: var(--fs-xs); }
+@media (min-width: 560px) { .diagramm__ablesung span { flex-basis: auto; } .diagramm__ablesung span::before { content: '· '; } }
 
 .diagramm__tabelle { margin-top: var(--sp-2); font-size: var(--fs-sm); }
 .diagramm__tabelle summary { min-height: var(--touch); display: flex; align-items: center; color: var(--c-link); cursor: pointer; }

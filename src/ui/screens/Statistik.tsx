@@ -79,10 +79,19 @@ function Aktivitaet({ tage }: { tage: TagesAktivitaet[] }) {
   const maxIdx = max > 0 ? werte.lastIndexOf(max) : -1;
   const heute = werte[werte.length - 1] ?? 0;
   const label = `Bewertungen pro Tag, letzte ${TAGE} Tage: heute ${heute}, höchstens ${max} an einem Tag, zusammen ${werte.reduce((a, c) => a + c, 0)}`;
-  const tip = aktiv !== null ? tage[aktiv] : undefined;
+  // Ablesezeile: zeigt den berührten Tag, sonst heute (kein schwebendes Fenster, kein Layoutsprung)
+  const tip = tage[aktiv ?? tage.length - 1];
 
   return (
     <div className="diagramm" ref={ref}>
+      {tip && (
+        <p className="diagramm__ablesung" aria-hidden="true">
+          <strong>{tip.karten + tip.uebungen}</strong> {aktiv === null || aktiv === tage.length - 1 ? 'heute' : `am ${wochentag(tip.tag)} ${kurzDatum(tip.tag)}`}
+          <span>
+            {tip.karten} Karten · {tip.uebungen} Übungen
+          </span>
+        </p>
+      )}
       <svg className="diagramm__svg" width={breite} height={hoehe} viewBox={`0 0 ${breite} ${hoehe}`} role="img" aria-label={label}>
         {ticks.map((t) => (
           <g key={t}>
@@ -125,18 +134,6 @@ function Aktivitaet({ tage }: { tage: TagesAktivitaet[] }) {
         })}
         <line className="diagramm__basis" x1={links} x2={breite} y1={y(0)} y2={y(0)} />
       </svg>
-      {tip && aktiv !== null && (
-        <div
-          className="diagramm__tipp"
-          style={{ left: `${Math.min(Math.max(links + aktiv * band + band / 2, 70), breite - 70)}px` } as CSSProperties}
-          aria-hidden="true"
-        >
-          <strong>{tip.karten + tip.uebungen}</strong> Bewertungen
-          <span>
-            {wochentag(tip.tag)} {kurzDatum(tip.tag)} · {tip.karten} Karten · {tip.uebungen} Übungen
-          </span>
-        </div>
-      )}
       <details className="diagramm__tabelle">
         <summary>Als Tabelle</summary>
         <table>
@@ -179,11 +176,18 @@ function Kalender({ wochen }: { wochen: KalenderTag[][] }) {
   const zelle = Math.min(22, Math.floor((breite - links) / wochen.length) - luecke);
   const hoehe = oben + 7 * (zelle + luecke);
   const gelernt = wochen.flat().filter((d) => d.anzahl > 0);
-  const tip = wochen.flat().find((d) => d.tag === aktiv);
+  const heute = wochen.flat().filter((d) => !d.zukunft).pop();
+  const tip = wochen.flat().find((d) => d.tag === aktiv) ?? heute;
   const label = `Lerntage der letzten ${WOCHEN} Wochen: an ${gelernt.length} Tagen gelernt`;
 
   return (
     <div className="diagramm" ref={ref}>
+      {tip && (
+        <p className="diagramm__ablesung" aria-hidden="true">
+          <strong>{tip.anzahl}</strong> {tip === heute ? 'heute' : `am ${wochentag(tip.tag)} ${kurzDatum(tip.tag)}`}
+          <span>{gelernt.length} Lerntage in {WOCHEN} Wochen</span>
+        </p>
+      )}
       <svg className="diagramm__svg" width={breite} height={hoehe} viewBox={`0 0 ${breite} ${hoehe}`} role="img" aria-label={label}>
         {[0, 2, 4, 6].map((d) => (
           <text key={d} className="diagramm__achse" x={0} y={oben + d * (zelle + luecke) + zelle / 2} dy="0.32em">
@@ -217,14 +221,6 @@ function Kalender({ wochen }: { wochen: KalenderTag[][] }) {
           </g>
         ))}
       </svg>
-      {tip && (
-        <div className="diagramm__tipp diagramm__tipp--fest" aria-hidden="true">
-          <strong>{tip.anzahl}</strong> Bewertungen
-          <span>
-            {wochentag(tip.tag)} {kurzDatum(tip.tag)}
-          </span>
-        </div>
-      )}
       <div className="kalender__legende" aria-hidden="true">
         <span>weniger</span>
         {[0, 1, 2, 3, 4, 5].map((s) => (
@@ -266,7 +262,8 @@ function Meter({ name, q }: { name: string; q: Quote }) {
   return (
     <div className="meter">
       <span className="meter__name">
-        {name} {p === null ? '–' : `${p} %`}
+        {name}
+        {p === null ? '' : ` ${p} %`}
       </span>
       <span className="meter__spur" aria-hidden="true">
         {p !== null && p > 0 && <span style={{ width: `${p}%` }} />}

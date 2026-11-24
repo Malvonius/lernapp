@@ -165,14 +165,14 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
       <Rahmen fach={fach}>
         <p className="probe__fach">{fach.name}</p>
         <h1 className="fach-titel">{probe.titel}</h1>
-        <dl className="probe-blatt">
+        <dl className="probe-blatt" aria-label={`${probe.dauerMin} Minuten, ${formatPunkte(max)} Punkte, ${aufgaben.length} Aufgaben`}>
           <div>
             <dt>Dauer</dt>
-            <dd>{probe.dauerMin} Minuten</dd>
+            <dd>{probe.dauerMin} Min</dd>
           </div>
           <div>
             <dt>Punkte</dt>
-            <dd>{formatPunkte(max)} Punkte</dd>
+            <dd>{formatPunkte(max)}</dd>
           </div>
           <div>
             <dt>Aufgaben</dt>
@@ -359,14 +359,16 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
 
       <div className="probe-nav">
         <button type="button" className="button button--quiet" disabled={pos === 0} onClick={() => setPos(pos - 1)}>
-          Vorherige Aufgabe
+          {'Vorherige '}<span className="visually-hidden">Aufgabe</span>
         </button>
         {pos + 1 < aufgaben.length ? (
           <button type="button" className="button" onClick={() => setPos(pos + 1)}>
-            Nächste Aufgabe
+            {'Nächste '}<span className="visually-hidden">Aufgabe</span>
           </button>
         ) : (
-          <p className="probe-nav__ende">Letzte Aufgabe · oben abgeben</p>
+          <button type="button" className="button" onClick={abgeben}>
+            Probe abgeben
+          </button>
         )}
       </div>
     </Rahmen>

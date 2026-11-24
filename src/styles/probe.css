@@ -38,7 +38,7 @@
 .probe__erklaerung { color: var(--c-muted); font-size: var(--fs-sm); line-height: 1.5; }
 .probe__aktionen { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-5); }
 .probe__start { flex: 1 1 12rem; min-height: 3.25rem; font-size: var(--fs-md); }
-.probe__zurueck { flex: 0 1 auto; }
+.probe__zurueck { flex: 1 1 12rem; }
 
 /* Laufende Probe: Kopf mit Restzeit, darunter die Lunte, die herunterbrennt */
 .probe-kopf {
@@ -104,8 +104,7 @@
 
 .probe-aufgabe .uebung { animation: feld-ein 200ms var(--ease) both; }
 .probe-nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-3); margin-top: var(--sp-4); }
-.probe-nav .button { flex: 1 1 9rem; }
-.probe-nav__ende { flex: 1 1 9rem; margin: 0; color: var(--c-muted); font-size: var(--fs-sm); text-align: right; }
+.probe-nav .button { flex: 1 1 9rem; white-space: nowrap; padding-inline: var(--sp-4); }
 
 /* Selbsteinschätzung in drei Glut-Stufen */
 .stufenwahl { display: grid; gap: var(--sp-2); }
@@ -180,6 +179,7 @@
   font-size: var(--fs-lg);
   font-weight: 700;
   line-height: 1.05;
+  font-variant-numeric: lining-nums;
 }
 .probe-ergebnis__note span { display: block; margin-top: 2px; font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; color: var(--c-muted); }
 .probe-ergebnis__ohne { max-width: 8rem; color: var(--c-muted); font-size: var(--fs-sm); line-height: 1.35; }
