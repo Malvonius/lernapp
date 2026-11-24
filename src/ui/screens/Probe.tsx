@@ -212,14 +212,36 @@ function ProbeAblauf({ fach, probe }: { fach: IndexSubject; probe: ProbeDaten })
     [aufgaben, antwortenAus, probe, record],
   );
 
+  // Immer die aktuelle speichere-Funktion, ohne dass die Effekte unten neu laufen (neues Probe-Objekt nach einem Abgleich)
+  const speichereRef = useRef(speichere);
+  speichereRef.current = speichere;
+
+  /** Ergebnisseite verlassen, ohne zu speichern: mit dem aktuellen Stand speichern (nicht Eingeschätztes zählt 0). */
+  const sichereOffenesErgebnis = useCallback(() => {
+    if (abgabeRef.current && !gespeichertRef.current) speichereRef.current(abgabeRef.current, stufenRef.current);
+  }, []);
+
+  // Nur beim echten Unmount
   useEffect(() => {
     aktiv.current = true;
     return () => {
       aktiv.current = false;
-      // Ergebnisseite verlassen, ohne zu speichern: mit dem aktuellen Stand speichern (nicht Eingeschätztes zählt 0)
-      if (abgabeRef.current && !gespeichertRef.current) speichere(abgabeRef.current, stufenRef.current);
+      sichereOffenesErgebnis();
     };
-  }, [speichere]);
+  }, [sichereOffenesErgebnis]);
+
+  // App/Tab geschlossen oder in den Hintergrund: Unmount findet dann oft nie statt, also jetzt speichern
+  useEffect(() => {
+    const beiSichtbarkeit = () => {
+      if (document.visibilityState === 'hidden') sichereOffenesErgebnis();
+    };
+    document.addEventListener('visibilitychange', beiSichtbarkeit);
+    window.addEventListener('pagehide', sichereOffenesErgebnis);
+    return () => {
+      document.removeEventListener('visibilitychange', beiSichtbarkeit);
+      window.removeEventListener('pagehide', sichereOffenesErgebnis);
+    };
+  }, [sichereOffenesErgebnis]);
 
   const gibAb = useCallback(
     (durchZeit: boolean) => {

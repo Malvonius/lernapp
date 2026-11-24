@@ -224,3 +224,82 @@ describe('Probe', () => {
     expect(screen.getByRole('link', { name: /Zurück zu Angewandte Mathematik/ })).toHaveAttribute('href', '#/fach/mathe');
   });
 });
+
+describe('Probe: Speichern beim Schließen und Rerender', () => {
+  const pruefungen = async () => (await getAllEvents(db)).filter((e) => e.art === 'pruefung');
+  const sichtbarkeit = (wert: 'hidden' | 'visible') => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => wert });
+    document.dispatchEvent(new Event('visibilitychange'));
+    delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+  };
+
+  async function bisZurEinschaetzung() {
+    await starte();
+    await bearbeite();
+    klick('Abgeben');
+    await screen.findByRole('region', { name: 'Selbst einschätzen' });
+    fireEvent.click(screen.getByRole('button', { name: /^Teilweise/ }));
+  }
+
+  it('in den Hintergrund auf der Ergebnisseite: genau ein pruefung-Ereignis, kein zweites danach', async () => {
+    await bisZurEinschaetzung();
+    expect(await pruefungen()).toHaveLength(0);
+    await act(async () => sichtbarkeit('hidden'));
+    await waitFor(async () => expect(await pruefungen()).toHaveLength(1));
+    expect((await pruefungen())[0]).toMatchObject({ ziel: ZIEL, punkte: 6.5, max: 12 });
+    expect(await screen.findByText('Ergebnis gespeichert')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ergebnis speichern' })).toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+      sichtbarkeit('visible');
+      sichtbarkeit('hidden');
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(await pruefungen()).toHaveLength(1);
+  });
+
+  it('pagehide auf der Ergebnisseite speichert ebenfalls', async () => {
+    await bisZurEinschaetzung();
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    await waitFor(async () => expect(await pruefungen()).toHaveLength(1));
+  });
+
+  it('während des Schreibens speichert der Hintergrund nichts', async () => {
+    await starte();
+    await act(async () => {
+      sichtbarkeit('hidden');
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(await pruefungen()).toHaveLength(0);
+  });
+
+  it('Rerender mit neuem Probe-Objekt (neu geladene Datei) speichert nicht vorzeitig', async () => {
+    window.location.hash = PFAD;
+    const idx = structuredClone(index);
+    const f = fakeClient(idx);
+    render(<App db={db} createClient={() => f.client} now={() => new Date('2026-11-22T12:00:00Z')} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Starten' }));
+    await screen.findByText(/Aufgabe 1 von 3/);
+    await bearbeite();
+    klick('Abgeben');
+    await screen.findByRole('region', { name: 'Selbst einschätzen' });
+    fireEvent.click(screen.getByRole('button', { name: /^Teilweise/ }));
+    // Datei gilt als geändert: der nächste Abgleich lädt sie neu und liefert ein neues Probe-Objekt
+    idx.faecher[0]!.proben[0]!.hash = 'neu';
+    await act(async () => {
+      sichtbarkeit('visible');
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    await waitFor(async () => expect((await getFile(db, idx.faecher[0]!.proben[0]!.pfad))?.hash).toBe('neu'));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(await pruefungen()).toHaveLength(0);
+    // Ergebnisseite und Einschätzung sind noch da
+    expect(screen.getByText('6,5 von 12')).toBeInTheDocument();
+    klick('Ergebnis speichern');
+    await waitFor(async () => expect(await pruefungen()).toHaveLength(1));
+  });
+});
