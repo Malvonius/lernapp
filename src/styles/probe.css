@@ -1,0 +1,211 @@
+/* ───────────────────────── Probe-Schularbeit ───────────────────────── */
+
+/* Fach: Proben-Zeile mit Ergebnis als dritte Zeile (passt auch bei 360 px) */
+.thema__link.probe-zeile { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'titel' 'info' 'ergebnis'; row-gap: 2px; }
+.probe-zeile__ergebnis { grid-area: ergebnis; font-size: var(--fs-sm); font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; }
+.probe-zeile__ergebnis::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: var(--sp-2);
+  border-radius: 50%;
+  vertical-align: 0.08em;
+  background: var(--c-st-gruen);
+  box-shadow: 0 0 6px var(--c-st-gruen-schein);
+}
+.probe-zeile__ergebnis--leer { color: var(--c-muted); font-weight: 500; }
+.probe-zeile__ergebnis--leer::before { background: transparent; border: 1.5px solid var(--c-st-neu); box-shadow: none; }
+
+.probe__fach { margin: 0 0 var(--sp-1); color: var(--c-muted); font-size: var(--fs-sm); font-weight: 600; }
+
+/* Startseite: Prüfungsblatt mit drei Kennzahlen */
+.probe-blatt {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--sp-5);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  box-shadow: var(--schatten-flaeche);
+}
+.probe-blatt > div { padding: var(--sp-3) var(--sp-4); min-width: 0; }
+.probe-blatt > div + div { border-left: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.probe-blatt dt { color: var(--c-muted); font-size: var(--fs-xs); font-weight: 600; }
+.probe-blatt dd { margin: 2px 0 0; font-family: var(--font-display); font-size: var(--fs-md); font-weight: 700; line-height: 1.2; font-variant-numeric: lining-nums; }
+.probe-hinweise { margin-bottom: var(--sp-5); padding-left: var(--sp-4); border-left: 2px solid var(--c-gold); }
+.probe-hinweise h2 { font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
+.probe__erklaerung { color: var(--c-muted); font-size: var(--fs-sm); line-height: 1.5; }
+.probe__aktionen { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-5); }
+.probe__start { flex: 1 1 12rem; min-height: 3.25rem; font-size: var(--fs-md); }
+.probe__zurueck { flex: 0 1 auto; }
+
+/* Laufende Probe: Kopf mit Restzeit, darunter die Lunte, die herunterbrennt */
+.probe-kopf {
+  position: sticky;
+  top: calc(var(--bar-h) + env(safe-area-inset-top, 0px));
+  z-index: 5;
+  margin: calc(-1 * var(--sp-3)) calc(-1 * var(--gutter)) var(--sp-4);
+  padding: var(--sp-2) var(--gutter) 0;
+  background: var(--c-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+.probe-kopf__zeile { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.probe-kopf__zeit { margin: 0; font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums lining-nums; }
+.probe-kopf[data-knapp='true'] .probe-kopf__zeit { color: var(--c-danger); }
+.probe-kopf__abgeben { padding-inline: var(--sp-4); }
+.probe-kopf__lunte { height: 3px; margin-top: var(--sp-2); background: var(--c-raised); overflow: hidden; }
+.probe-kopf__lunte > span {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--c-glut-tief), var(--c-glut-hell));
+  box-shadow: 0 0 10px var(--c-st-gruen-schein);
+  transition: transform 1s linear;
+}
+.probe-kopf[data-knapp='true'] .probe-kopf__lunte > span { background: linear-gradient(90deg, var(--c-st-rot-kern), var(--c-glut-tief)); }
+:root[data-theme='light'] .probe-kopf__lunte { background: var(--c-line); }
+
+.probe-nachfrage {
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid color-mix(in oklab, var(--c-accent) 55%, var(--c-line));
+  border-radius: var(--r-panel);
+  background: linear-gradient(90deg, color-mix(in oklab, var(--c-accent) 12%, var(--c-surface)), var(--c-surface));
+  animation: feld-ein 200ms var(--ease) both;
+}
+.probe-nachfrage p { margin-bottom: var(--sp-3); font-weight: 600; }
+
+/* Aufgabenleiste: Nummern sind echte Reihenfolge; beantwortete glühen */
+.probe-leiste ol { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.probe-leiste__knopf {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  border-radius: 50%;
+  border: 1.5px solid var(--c-line);
+  background: transparent;
+  color: var(--c-muted);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--dur-press) var(--ease), border-color var(--dur) ease, background-color var(--dur) ease;
+}
+.probe-leiste__knopf:active { transform: scale(0.94); }
+.probe-leiste__knopf[data-beantwortet='true'] {
+  color: var(--c-on-accent);
+  border-color: transparent;
+  background: radial-gradient(circle at 50% 40%, var(--c-glut-hell), var(--c-glut-tief));
+  box-shadow: 0 0 10px var(--c-st-gruen-schein);
+}
+.probe-leiste__knopf[aria-current='step'] { outline: 2px solid var(--fach); outline-offset: 2px; color: var(--c-text); }
+.probe-leiste__knopf[data-beantwortet='true'][aria-current='step'] { color: var(--c-on-accent); }
+
+.probe-aufgabe .uebung { animation: feld-ein 200ms var(--ease) both; }
+.probe-nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-3); margin-top: var(--sp-4); }
+.probe-nav .button { flex: 1 1 9rem; }
+.probe-nav__ende { flex: 1 1 9rem; margin: 0; color: var(--c-muted); font-size: var(--fs-sm); text-align: right; }
+
+/* Selbsteinschätzung in drei Glut-Stufen */
+.stufenwahl { display: grid; gap: var(--sp-2); }
+.stufenwahl__frage { margin: 0; font-weight: 600; }
+.stufenwahl__knoepfe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.stufenwahl__knopf {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 3.75rem;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) calc(var(--sp-2) + 14px);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-raised);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-field);
+  cursor: pointer;
+  transition: transform var(--dur-press) var(--ease), border-color var(--dur) ease;
+}
+.stufenwahl__knopf::before {
+  content: '';
+  position: absolute;
+  left: var(--sp-2);
+  top: calc(var(--sp-2) + 0.42em);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--glut-stufe);
+  box-shadow: 0 0 var(--glut-schein-r, 0) var(--glut-stufe);
+}
+.stufenwahl__knopf small { color: var(--c-muted); font-weight: 500; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.stufenwahl__knopf:active { transform: scale(0.97); }
+.stufenwahl__knopf--voll { --glut-stufe: var(--c-st-gruen); --glut-schein-r: 8px; }
+.stufenwahl__knopf--teilweise { --glut-stufe: var(--c-st-gelb); --glut-schein-r: 4px; }
+.stufenwahl__knopf--keine { --glut-stufe: var(--c-st-rot); }
+:root[data-theme='light'] .stufenwahl__knopf--voll { --glut-stufe: #c98200; }
+
+/* Ergebnis: Punkte groß, Note als Siegel */
+.probe-ergebnis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'punkte note' 'einheit note' 'prozent note' 'balken balken';
+  align-items: end;
+  column-gap: var(--sp-4);
+  margin: 0 0 var(--sp-6);
+  padding: var(--sp-5);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-panel);
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, var(--fach) 16%, var(--c-surface)), var(--c-surface) 65%);
+  box-shadow: var(--schatten-flaeche);
+}
+.probe-ergebnis > p { margin: 0; }
+.probe-ergebnis__punkte { grid-area: punkte; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: 700; line-height: 1; font-variant-numeric: lining-nums; }
+.probe-ergebnis__einheit { grid-area: einheit; color: var(--c-muted); font-size: var(--fs-sm); }
+.probe-ergebnis > .probe-ergebnis__prozent { grid-area: prozent; margin-top: var(--sp-2); font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
+.probe-ergebnis__note,
+.probe-ergebnis__ohne { grid-area: note; align-self: center; justify-self: end; text-align: center; }
+.probe-ergebnis__note {
+  display: grid;
+  place-content: center;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--c-gold) 70%, transparent);
+  background: radial-gradient(circle at 50% 35%, color-mix(in oklab, var(--c-glut-hell) 22%, var(--c-surface)), var(--c-surface) 70%);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--c-gold) 14%, transparent), 0 0 24px -6px var(--c-st-gruen-schein);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1.05;
+}
+.probe-ergebnis__note span { display: block; margin-top: 2px; font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; color: var(--c-muted); }
+.probe-ergebnis__ohne { max-width: 8rem; color: var(--c-muted); font-size: var(--fs-sm); line-height: 1.35; }
+.probe-ergebnis__balken { grid-area: balken; height: 6px; margin-top: var(--sp-4); border-radius: 3px; background: var(--c-raised); overflow: hidden; }
+.probe-ergebnis__balken > span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--c-glut-tief), var(--c-glut-hell)); box-shadow: 0 0 8px var(--c-st-gruen-schein); }
+:root[data-theme='light'] .probe-ergebnis__balken { background: var(--c-line); }
+
+.probe-punkte {
+  list-style: none;
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-panel);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.probe-punkte li { display: flex; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); font-variant-numeric: tabular-nums; }
+.probe-punkte li + li { border-top: 1px solid color-mix(in oklab, var(--c-line) 70%, transparent); }
+.probe-punkte__wert { font-weight: 700; }
+.probe-punkte li[data-stufe='keine'] .probe-punkte__wert,
+.probe-punkte li[data-stufe='offen'] .probe-punkte__wert { color: var(--c-danger); }
+.probe-punkte li[data-stufe='teilweise'] .probe-punkte__wert { color: var(--c-st-gelb); }
+.probe-nachsehen__kopf { margin: 0; color: var(--c-muted); font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.probe-nachsehen__loesung summary { min-height: var(--touch); display: flex; align-items: center; color: var(--c-link); }
+
+@media (hover: hover) and (pointer: fine) {
+  .probe-leiste__knopf:hover { border-color: var(--fach); color: var(--c-text); }
+  .stufenwahl__knopf:hover { border-color: color-mix(in oklab, var(--glut-stufe) 70%, var(--c-line)); }
+}

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Card as FsrsCard } from 'ts-fsrs';
-import type { IndexSubject, LernIndex, Topic } from '../format/types';
-import { loadTopic, syncContent } from '../lib/contentSync';
+import type { IndexSubject, LernIndex, Probe, Topic } from '../format/types';
+import { loadProbe, loadTopic, syncContent } from '../lib/contentSync';
 import { getAllEvents, getFile, getOutbox, getSetting, openLernDb, setSetting, type LernDatabase } from '../lib/db';
 import { createGitHubClient, GitHubError, type GitHubClient } from '../lib/github';
 import { dueCards, replayCards, uebungStand, type Ereignis } from '../lib/progress';
@@ -28,6 +28,8 @@ export interface AppData {
   theme: Theme;
   index: LernIndex | null;
   topics: (pfad: string) => Topic | null;
+  /** Probe-Schularbeit aus dem Cache (Pfad aus `IndexSubject.proben`) */
+  proben: (pfad: string) => Probe | null;
   kartenZustand: Map<string, FsrsCard>;
   /** Letzter Versuch je Übungs-ID (für die Ampel) */
   uebungsStand: ReturnType<typeof uebungStand>;
@@ -115,6 +117,26 @@ async function ladeThemen(db: LernDatabase, index: LernIndex, alt: Map<string, T
   return neu;
 }
 
+/** Wie ladeThemen, für die Proben-Dateien (ältere Indizes ohne `proben` liefern keine). */
+async function ladeProben(db: LernDatabase, index: LernIndex, alt: Map<string, Probe>, geaendert: string[] | null) {
+  const neu = new Map<string, Probe>();
+  const geaendertSet = geaendert ? new Set(geaendert) : null;
+  for (const pfad of index.faecher.flatMap((f) => (f.proben ?? []).map((p) => p.pfad))) {
+    const vorher = alt.get(pfad);
+    if (vorher && geaendertSet && !geaendertSet.has(pfad)) {
+      neu.set(pfad, vorher);
+      continue;
+    }
+    try {
+      const p = await loadProbe(db, pfad);
+      if (p) neu.set(pfad, p);
+    } catch {
+      // eine unlesbare Probe darf die anderen nicht verhindern
+    }
+  }
+  return neu;
+}
+
 /** Leerlauf nach der letzten Bewertung, bevor hochgeladen wird: jeder Upload liest und schreibt die ganze Fortschrittsdatei. */
 export const UPLOAD_PAUSE_MS = 60_000;
 
@@ -139,6 +161,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const [theme, setTheme] = useState<Theme>('dunkel');
   const [index, setIndex] = useState<LernIndex | null>(null);
   const [themen, setThemen] = useState<Map<string, Topic>>(new Map());
+  const [probenMap, setProbenMap] = useState<Map<string, Probe>>(new Map());
   const [ereignisse, setEreignisse] = useState<Ereignis[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ laeuft: false, offline: false, stand: null });
   // Zähler, der `jetzt` neu rechnen lässt (Sichtbarkeit, Takt, Mitternacht)
@@ -148,6 +171,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const dbRef = useRef<LernDatabase | null>(null);
   const zugangRef = useRef(zugang);
   const themenRef = useRef(themen);
+  const probenRef = useRef(probenMap);
   const laufenderSync = useRef<Promise<void> | null>(null);
   const fortschrittKette = useRef<Promise<unknown>>(Promise.resolve());
   const uploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,6 +214,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
         }
         let offline = inhalt?.offline ?? fehler?.kind === 'network';
         const neueThemen = inhalt ? await ladeThemen(db, inhalt.index, themenRef.current, inhalt.geaendert) : null;
+        const neueProben = inhalt ? await ladeProben(db, inhalt.index, probenRef.current, inhalt.geaendert) : null;
         if (geraet && !offline) {
           try {
             offline = (await fortschrittAbgleichen(client, db, geraet)).offline;
@@ -199,10 +224,12 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
         }
         const ev = await ladeEreignisse(db);
         if (!aktiv.current) return;
-        if (inhalt && neueThemen) {
+        if (inhalt && neueThemen && neueProben) {
           themenRef.current = neueThemen;
+          probenRef.current = neueProben;
           setIndex(inhalt.index);
           setThemen(neueThemen);
+          setProbenMap(neueProben);
         }
         setEreignisse(ev);
         setSyncStatus((s) => ({ laeuft: false, offline: inhalt ? offline : s.offline, stand: inhalt?.stand ?? s.stand, fehler }));
@@ -229,15 +256,18 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
         ladeEreignisse(db),
       ]);
       const t = idx ? await ladeThemen(db, idx, new Map(), null) : new Map<string, Topic>();
+      const pr = idx ? await ladeProben(db, idx, new Map(), null) : new Map<string, Probe>();
       if (abgebrochen || !aktiv.current) return;
       dbRef.current = db;
       const z = { token: typeof token === 'string' && token ? token : null, geraet: typeof geraet === 'string' && geraet ? geraet : null };
       zugangRef.current = z;
       themenRef.current = t;
+      probenRef.current = pr;
       setZugang(z);
       setTheme(gespeichertesTheme === 'hell' ? 'hell' : 'dunkel');
       setIndex(idx);
       setThemen(t);
+      setProbenMap(pr);
       setEreignisse(ev);
       setSyncStatus({ laeuft: false, offline: false, stand: idx?.erstellt ?? null });
       setBereit(true);
@@ -390,6 +420,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
   const jetzt = useMemo(() => nowRef.current(), [kartenZustand, themen, syncStatus, uhrTick]);
   const faellig = useMemo(() => dueCards(kartenZustand, [...themen.values()].flatMap(aktiveKartenIds), jetzt), [kartenZustand, themen, jetzt]);
   const topics = useCallback((pfad: string) => themen.get(pfad) ?? null, [themen]);
+  const proben = useCallback((pfad: string) => probenMap.get(pfad) ?? null, [probenMap]);
 
   const wert = useMemo<AppData>(
     () => ({
@@ -399,6 +430,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       theme,
       index,
       topics,
+      proben,
       kartenZustand,
       uebungsStand,
       ereignisse,
@@ -414,7 +446,7 @@ export function AppDataProvider({ children, db: dbProp, createClient = createGit
       neuerClient,
       setzeTheme,
     }),
-    [bereit, zugang, theme, index, topics, kartenZustand, uebungsStand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, neuerClient, setzeTheme],
+    [bereit, zugang, theme, index, topics, proben, kartenZustand, uebungsStand, ereignisse, faellig, jetzt, zufall, syncStatus, sync, record, hochladen, pruefeVerbindung, speichereZugang, neuerClient, setzeTheme],
   );
 
   return <Ctx.Provider value={wert}>{children}</Ctx.Provider>;

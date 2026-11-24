@@ -6,6 +6,7 @@ import { Fach } from './ui/screens/Fach';
 import { Hochladen } from './ui/screens/Hochladen';
 import { Einstellungen } from './ui/screens/Einstellungen';
 import { Platzhalter } from './ui/screens/Platzhalter';
+import { Probe } from './ui/screens/Probe';
 import { Pruefung } from './ui/screens/Pruefung';
 import { Suche } from './ui/screens/Suche';
 import { Start } from './ui/screens/Start';
@@ -30,6 +31,7 @@ function Routen() {
       {/* key: andere Query (Fach/Thema) = neue Sitzung */}
       <Route path="/wiederholen" element={<Wiederholen key={search} />} />
       <Route path="/pruefung" element={<Pruefung />} />
+      <Route path="/probe/:fachId/:probeId" element={<Probe />} />
       <Route path="/hochladen" element={<Hochladen />} />
       <Route path="/suche" element={<Suche />} />
       <Route path="/einstellungen" element={<Einstellungen />} />

@@ -104,7 +104,7 @@ describe('buildIndex: Proben', () => {
     const p = mathe.proben[0]!;
     expect(p).toMatchObject({
       id: 'mathe-probe-ableitungen-1',
-      titel: 'Probe-Schularbeit Ableitungen',
+      titel: 'Probe-Schularbeit Differentialrechnung',
       pfad: 'Mathe/_proben/Probe Ableitungen.md',
       aufgaben: 3,
       punkte: 12,
@@ -122,7 +122,7 @@ describe('buildIndex: Proben', () => {
     writeFileSync(join(root, 'Mathe/_proben/c.md'), probeFile('Andere', probeAufgabe('u-zz0002', '')));
     const { index } = await buildIndex(root, { fix: false });
     const proben = index.faecher[0]!.proben;
-    expect(proben.map((p) => p.titel)).toEqual(['Andere', 'Probe-Schularbeit Ableitungen', 'Zweite']);
+    expect(proben.map((p) => p.titel)).toEqual(['Andere', 'Probe-Schularbeit Differentialrechnung', 'Zweite']);
     expect(proben[0]!.fehler.join()).toMatch(/punkte fehlt/);
     expect(index.fehlerAnzahl).toBe(1);
   });

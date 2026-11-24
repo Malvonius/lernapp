@@ -1,5 +1,6 @@
+import { parseProbe } from '../format/parseProbe';
 import { parseTopic } from '../format/parseTopic';
-import type { IndexTopic, LernIndex, Topic } from '../format/types';
+import type { IndexProbe, IndexTopic, LernIndex, Probe, Topic } from '../format/types';
 import { deleteFile, getFile, getMeta, putFile, setMeta, type LernDatabase } from './db';
 import { GitHubError, type GitHubClient } from './github';
 
@@ -18,10 +19,19 @@ export const LADEFEHLER = 'Datei konnte nicht geladen werden';
 /** Diese Fehler betreffen jede Anfrage gleich: weitermachen wäre sinnlos. */
 const ABBRUCH = new Set(['auth', 'ratelimit', 'network']);
 
-function topicEntries(index: LernIndex): { pfad: string; hash: string | null; thema: IndexTopic }[] {
-  return index.faecher
-    .flatMap((f) => [...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet])
-    .flatMap((t) => (t.pfad === null ? [] : [{ pfad: t.pfad, hash: t.hash, thema: t }]));
+interface Eintrag {
+  pfad: string;
+  hash: string | null;
+  /** Index-Eintrag, an dem ein Ladefehler vermerkt wird */
+  thema: IndexTopic | IndexProbe;
+}
+
+/** Alle Dateien des Index, die geladen werden: Themen mit Unterlagen und Proben (ältere Indizes haben keine). */
+function topicEntries(index: LernIndex): Eintrag[] {
+  return index.faecher.flatMap((f): Eintrag[] => [
+    ...[...f.kapitel.flatMap((k) => k.themen), ...f.nichtZugeordnet].flatMap((t) => (t.pfad === null ? [] : [{ pfad: t.pfad, hash: t.hash, thema: t }])),
+    ...(f.proben ?? []).map((p) => ({ pfad: p.pfad, hash: p.hash, thema: p })),
+  ]);
 }
 
 async function cachedIndex(db: LernDatabase): Promise<LernIndex | null> {
@@ -93,6 +103,12 @@ export async function syncContent(client: GitHubClient, db: LernDatabase): Promi
     }
     throw e;
   }
+}
+
+/** Liest eine Probe-Schularbeit aus dem Cache; null, wenn sie dort nicht liegt. */
+export async function loadProbe(db: LernDatabase, pfad: string): Promise<Probe | null> {
+  const f = await getFile(db, pfad);
+  return f ? parseProbe(f.text) : null;
 }
 
 /** Liest ein Thema aus dem Cache; null, wenn es dort nicht liegt. */

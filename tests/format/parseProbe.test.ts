@@ -20,7 +20,7 @@ describe('parseProbe', () => {
     expect(p).toMatchObject({
       id: 'mathe-probe-ableitungen-1',
       fach: 'mathe',
-      titel: 'Probe-Schularbeit Ableitungen',
+      titel: 'Probe-Schularbeit Differentialrechnung',
       dauerMin: 20,
       quellen: ['[[_quellen/Mathe/Beispiel.docx]]'],
       stand: '2026-11-23',

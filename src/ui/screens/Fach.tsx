@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { IndexSubject, IndexTopic } from '../../format/types';
+import type { IndexProbe, IndexSubject, IndexTopic } from '../../format/types';
+import { formatPunkte, letztesErgebnis } from '../../lib/probe';
 import { aktiveKartenIds, aktiveUebungIds, useAppData } from '../../state/AppData';
 import { kapitelStatus, themaStatus, type Status } from '../../lib/status';
 import { Ampel } from '../components/Ampel';
@@ -49,6 +50,36 @@ function ThemaZeile({ fachId, t, status }: { fachId: string; t: IndexTopic; stat
   );
 }
 
+function ProbeZeile({ fachId, p }: { fachId: string; p: IndexProbe }) {
+  const { ereignisse } = useAppData();
+  const [offen, setOffen] = useState(false);
+  if (p.fehler.length > 0 || !p.id) {
+    return (
+      <li className="thema thema--fehlerhaft">
+        <button type="button" className="thema__knopf" aria-expanded={offen} title={FEHLER_HINWEIS} onClick={() => setOffen((o) => !o)}>
+          <span className="thema__titel">{p.titel}</span>
+          <Ampel status="fehlerhaft" />
+        </button>
+        {offen && <p className="thema__hinweis">{FEHLER_HINWEIS}</p>}
+      </li>
+    );
+  }
+  const letzte = letztesErgebnis(ereignisse, p.id);
+  return (
+    <li className="thema">
+      <Link to={`/probe/${encodeURIComponent(fachId)}/${encodeURIComponent(p.id)}`} className="thema__link probe-zeile">
+        <span className="thema__titel">{p.titel}</span>
+        <span className="thema__info">
+          {p.dauerMin} Min · {formatPunkte(p.punkte)} Punkte · {p.aufgaben} {p.aufgaben === 1 ? 'Aufgabe' : 'Aufgaben'}
+        </span>
+        <span className={letzte ? 'probe-zeile__ergebnis' : 'probe-zeile__ergebnis probe-zeile__ergebnis--leer'}>
+          {letzte ? `Zuletzt ${formatPunkte(letzte.punkte)} von ${formatPunkte(letzte.max)}` : 'noch nicht geschrieben'}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 function FachInhalt({ fach }: { fach: IndexSubject }) {
   const { topics, kartenZustand, uebungsStand, jetzt } = useAppData();
   const status = (t: IndexTopic) => {
@@ -82,6 +113,18 @@ function FachInhalt({ fach }: { fach: IndexSubject }) {
       {fach.struktur === 'vorlaeufig' && <p className="hinweis">vorläufige Gliederung</p>}
       {fach.kapitel.map((k, i) => abschnitt(`k${i}`, i, k.titel, k.themen, true))}
       {fach.nichtZugeordnet.length > 0 && abschnitt('nz', fach.kapitel.length, 'Nicht zugeordnet', fach.nichtZugeordnet, false)}
+      {(fach.proben ?? []).length > 0 && (
+        <section className="kapitel gestaffelt" style={{ '--i': fach.kapitel.length + 1 } as CSSProperties} aria-labelledby="kap-proben">
+          <h2 id="kap-proben" className="kapitel__titel">
+            <span>Probe-Schularbeiten</span>
+          </h2>
+          <ul className="themen">
+            {fach.proben.map((p) => (
+              <ProbeZeile key={p.pfad} fachId={fach.id} p={p} />
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

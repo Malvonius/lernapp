@@ -1,7 +1,7 @@
 ---
 id: mathe-probe-ableitungen-1
 fach: mathe
-titel: Probe-Schularbeit Ableitungen
+titel: Probe-Schularbeit Differentialrechnung
 dauer_min: 20
 quellen:
   - "[[_quellen/Mathe/Beispiel.docx]]"
@@ -13,7 +13,7 @@ notenschluessel:
   - { note: 4, ab_prozent: 50 }
   - { note: 5, ab_prozent: 0 }
 ---
-# Probe-Schularbeit Ableitungen
+# Probe-Schularbeit Differentialrechnung
 
 ## Hinweise
 Erlaubt: Formelsammlung und Taschenrechner. Gib bei offenen Aufgaben den Rechenweg an.
